@@ -48,13 +48,13 @@ This setup uses Homebrew and standard Android SDK locations (e.g., `$HOME/Librar
    $HOME/Library/Android/sdk/emulator/emulator -avd Pixel_10_Pro
    ```
 
-   Alternatively, launch it from VS Code using the **Google Android for VS Code** extension. This is the recommended "Antigravity-compatible" plugin for managing devices visually.
+   Alternatively, launch it from VS Code using the **Google Android for VS Code** extension.
 
-6. **Build & Run**
-   After launching the emulator, you can install and run the app with:
+   **🚀 One-Command Start (Recommended)**:
+   This command will check dependencies, create the emulator if missing, launch it, build the app, and run it.
 
    ```bash
-   ./gradlew installDebug
+   make start
    ```
 
 ### Machine 2 Setup
@@ -68,26 +68,24 @@ This setup uses shared paths for the SDK location.
    sdk.dir=/usr/local/share/android-commandlinetools
    ```
 
-### Verification & Building (All Machines)
+### Verification & Building (All Machines - Using Makefile)
 
 1. **Verify Environment**
-   Run the helper script to verify your setup:
 
    ```bash
-   chmod +x scripts/check_env.sh
-   ./scripts/check_env.sh
+   make setup
    ```
 
 2. **Build the Debug APK**
 
    ```bash
-   ./gradlew assembleDebug
+   make build
    ```
 
 3. **Run Unit Tests**
 
    ```bash
-   ./gradlew test
+   make test
    ```
 
 ### Troubleshooting
