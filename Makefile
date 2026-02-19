@@ -1,4 +1,4 @@
-.PHONY: setup start build test clean emulator install run log help
+.PHONY: setup start teardown build test clean emulator install run log help
 
 # Configuration
 GRADLE := ./gradlew
@@ -16,6 +16,8 @@ help:
 	@echo "-------------------------"
 	@echo "make setup    - Verify development environment"
 	@echo "make start    - 🚀 One-Step Dev: Setup, Build, & Launch Emulator/App"
+	@echo "make teardown - 🛑 Stop Emulator & Clean Build"
+	@echo "make update   - 🔄 Fast Update: Reinstall & Launch App (Keep Emulator Running)"
 	@echo "make build    - Build the debug APK"
 	@echo "make test     - Run unit tests"
 	@echo "make clean    - Clean build artifacts"
@@ -33,6 +35,14 @@ setup:
 start:
 	@chmod +x scripts/start_dev.sh
 	@./scripts/start_dev.sh
+
+# Stop Emulator & Clean
+teardown:
+	@chmod +x scripts/teardown.sh
+	@./scripts/teardown.sh
+
+# Update app without restarting emulator
+update: run
 
 # Build the debug APK
 build:

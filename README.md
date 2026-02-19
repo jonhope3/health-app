@@ -57,6 +57,19 @@ This setup uses Homebrew and standard Android SDK locations (e.g., `$HOME/Librar
    make start
    ```
 
+   **🔄 Update App (Keep Emulator Running)**:
+   Use this to fast re-deploy your changes without restarting the emulator.
+
+   ```bash
+   make update
+   ```
+
+   **🛑 Teardown (Stop & Clean)**:
+
+   ```bash
+   make teardown
+   ```
+
 ### Machine 2 Setup
 
 This setup uses shared paths for the SDK location.
