@@ -106,6 +106,11 @@ class StepsViewModel(application: Application) : AndroidViewModel(application) {
                             _caloriesBurned.update { burned }
                             _stepSource.update { "health_connect" }
                             _needsHealthConnectPermissions.value = false
+
+                            history.forEach { (date, count) ->
+                                stepsRepository.saveSteps(count, date)
+                            }
+
                             loaded = true
                         } else {
                             _needsHealthConnectPermissions.value = true
@@ -123,10 +128,12 @@ class StepsViewModel(application: Application) : AndroidViewModel(application) {
                         if (pedometerService.isAvailable(app)) {
                             pedometerService.onStepUpdate = { stepCount ->
                                 _steps.update { stepCount }
+                                stepsRepository.saveSteps(stepCount, today)
                             }
                             pedometerService.start(app)
                             val pedometerSteps = pedometerService.getSteps()
                             _steps.update { pedometerSteps }
+                            stepsRepository.saveSteps(pedometerSteps, today)
                             val repoHistory = stepsRepository.getStepsHistory(7)
                             val mergedHistory = if (repoHistory.isNotEmpty()) {
                                 listOf(today to pedometerSteps) + repoHistory.drop(1)

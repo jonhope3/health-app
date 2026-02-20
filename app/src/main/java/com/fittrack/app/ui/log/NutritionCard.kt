@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -60,7 +61,8 @@ enum class MeasureUnit(val label: String, val gramsPerUnit: Float, val presets: 
 @Composable
 fun NutritionCard(
     result: NutritionResult,
-    onAdd: (String, NutritionResult, Float, String) -> Unit
+    onAdd: (String, NutritionResult, Float, String) -> Unit,
+    isAiEstimated: Boolean = false
 ) {
     val parsedInfo = remember(result) { com.fittrack.app.util.parseServingSize(result.servingDescription) }
     
@@ -91,6 +93,13 @@ fun NutritionCard(
             || result.servingDescription?.contains("serving", ignoreCase = true) == true
             || result.servingDescription != null
 
+    val confidenceColor = if (isAiEstimated) {
+        when {
+            result.confidence != null && result.confidence < 0.5f -> AppColors.error
+            else -> AppColors.warning
+        }
+    } else null
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = AppColors.surface),
@@ -99,6 +108,37 @@ fun NutritionCard(
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
+            if (isAiEstimated) {
+                val conf = result.confidence
+                val bannerColor = confidenceColor ?: AppColors.warning
+                val bannerText = when {
+                    conf != null -> "AI estimate (${(conf * 100).toInt()}% confident)"
+                    else -> "AI estimate \u2014 values may not be exact"
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(bannerColor.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Filled.Info,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = bannerColor
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = bannerText,
+                        fontFamily = interFamily,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = bannerColor
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
@@ -223,7 +263,12 @@ fun NutritionCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                MacroChip(label = "Cal", value = "$scaledCalories", color = AppColors.calorie)
+                MacroChip(
+                    label = "Cal",
+                    value = "$scaledCalories",
+                    color = confidenceColor ?: AppColors.calorie,
+                    highlightText = isAiEstimated
+                )
                 MacroChip(label = "P", value = "${"%.1f".format(scaledProtein)}g", color = AppColors.protein)
                 MacroChip(label = "C", value = "${"%.1f".format(scaledCarbs)}g", color = AppColors.carbs)
                 MacroChip(label = "F", value = "${"%.1f".format(scaledFat)}g", color = AppColors.fat)
@@ -255,7 +300,8 @@ fun NutritionCard(
 private fun MacroChip(
     label: String,
     value: String,
-    color: androidx.compose.ui.graphics.Color
+    color: androidx.compose.ui.graphics.Color,
+    highlightText: Boolean = false
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically
@@ -270,7 +316,8 @@ private fun MacroChip(
             text = "$label: $value",
             fontFamily = interFamily,
             style = MaterialTheme.typography.bodySmall,
-            color = AppColors.textPrimary
+            fontWeight = if (highlightText) FontWeight.Bold else FontWeight.Normal,
+            color = if (highlightText) color else AppColors.textPrimary
         )
     }
 }

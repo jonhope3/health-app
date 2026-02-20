@@ -39,12 +39,16 @@ import com.fittrack.app.theme.interFamily
 import com.fittrack.app.util.fmtNum
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.SmartToy
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -276,7 +280,7 @@ private fun SummaryCard(
             modifier = Modifier.padding(16.dp)
         ) {
             Text(
-                text = "${fmtNum(caloriesEaten)} / ${fmtNum(calorieGoal)} kcal",
+                text = "${fmtNum(caloriesEaten)} / ${fmtNum(calorieGoal)} cal",
                 fontFamily = interFamily,
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.titleLarge,
@@ -585,7 +589,36 @@ private fun AiModeContent(
 
         if (aiResults.isNotEmpty()) {
             Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(AppColors.warning.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Filled.Info,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = AppColors.warning
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "AI estimates \u2014 review before adding",
+                    fontFamily = interFamily,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = AppColors.warning
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             aiResults.forEach { item ->
+                val itemColor = when {
+                    item.confidence != null && item.confidence < 0.5f -> AppColors.error
+                    else -> AppColors.warning
+                }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -594,18 +627,37 @@ private fun AiModeContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "${item.name} (${item.quantity})",
+                                fontFamily = interFamily,
+                                fontWeight = FontWeight.Medium,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = AppColors.textPrimary,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            if (item.confidence != null) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "${(item.confidence * 100).toInt()}%",
+                                    fontFamily = interFamily,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = itemColor
+                                )
+                            }
+                        }
                         Text(
-                            text = "${item.name} (${item.quantity})",
+                            text = buildAnnotatedString {
+                                withStyle(SpanStyle(color = itemColor, fontWeight = FontWeight.Bold)) {
+                                    append("${fmtNum(item.calories)} cal")
+                                }
+                                withStyle(SpanStyle(color = AppColors.textSecondary)) {
+                                    append(" \u2022 ${fmtMacro(item.protein)}g P \u2022 ${fmtMacro(item.carbs)}g C \u2022 ${fmtMacro(item.fat)}g F")
+                                }
+                            },
                             fontFamily = interFamily,
-                            fontWeight = FontWeight.Medium,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = AppColors.textPrimary
-                        )
-                        Text(
-                            text = "${fmtNum(item.calories)} kcal • ${fmtMacro(item.protein)}g P • ${fmtMacro(item.carbs)}g C • ${fmtMacro(item.fat)}g F",
-                            fontFamily = interFamily,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = AppColors.textSecondary
+                            style = MaterialTheme.typography.bodySmall
                         )
                     }
                     Button(
@@ -671,7 +723,7 @@ private fun ManualModeContent(
         OutlinedTextField(
             value = manualCalories,
             onValueChange = onCaloriesChange,
-            label = { Text("Calories", fontFamily = interFamily) },
+            label = { Text("Cal", fontFamily = interFamily) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true
         )
@@ -956,9 +1008,11 @@ private fun ScanModeContent(
 
         scanResult?.let { result ->
             Spacer(modifier = Modifier.height(16.dp))
+            val lowConfidenceScan = result.confidence != null && result.confidence < 0.7f
             NutritionCard(
                 result = result,
-                onAdd = onAddFromScan
+                onAdd = onAddFromScan,
+                isAiEstimated = lowConfidenceScan
             )
         }
     }
@@ -1029,7 +1083,7 @@ private fun EditFoodDialog(viewModel: LogViewModel) {
                 OutlinedTextField(
                     value = editCalories,
                     onValueChange = { viewModel.setEditCalories(it) },
-                    label = { Text("Calories", fontFamily = interFamily) },
+                    label = { Text("Cal", fontFamily = interFamily) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = textFieldColors
                 )
@@ -1128,7 +1182,7 @@ private fun AllFoodsDialog(
                                     color = AppColors.textPrimary
                                 )
                                 Text(
-                                    text = "${food.calories} kcal • ${food.protein}g Protein • ${food.carbs}g Carbs • ${food.fat}g Fat",
+                                    text = "${food.calories} cal • ${food.protein}g Protein • ${food.carbs}g Carbs • ${food.fat}g Fat",
                                     fontFamily = interFamily,
                                     fontSize = 14.sp,
                                     color = AppColors.textSecondary

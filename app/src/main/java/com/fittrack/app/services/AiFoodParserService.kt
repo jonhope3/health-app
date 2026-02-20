@@ -79,7 +79,8 @@ class AiFoodParserService(
                     protein = round1(safeDouble(item["protein"]?.jsonPrimitive?.content)),
                     carbs = round1(safeDouble(item["carbs"]?.jsonPrimitive?.content)),
                     fat = round1(safeDouble(item["fat"]?.jsonPrimitive?.content)),
-                    quantity = item["quantity"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() } ?: "1 serving"
+                    quantity = item["quantity"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() } ?: "1 serving",
+                    confidence = item["confidence"]?.jsonPrimitive?.content?.toFloatOrNull()?.coerceIn(0f, 1f)
                 )
             }
         } catch (e: Exception) {
@@ -114,6 +115,7 @@ class AiFoodParserService(
             if (calories <= 0) return@withContext null
 
             val servingSize = jsonObj["serving_size"]?.jsonPrimitive?.content ?: "1 serving"
+            val confidence = jsonObj["confidence"]?.jsonPrimitive?.content?.toFloatOrNull()?.coerceIn(0f, 1f)
 
             NutritionResult(
                 name = name,
@@ -121,7 +123,8 @@ class AiFoodParserService(
                 protein = round1(safeDouble(jsonObj["protein"]?.jsonPrimitive?.content)),
                 carbs = round1(safeDouble(jsonObj["carbs"]?.jsonPrimitive?.content)),
                 fat = round1(safeDouble(jsonObj["fat"]?.jsonPrimitive?.content)),
-                servingDescription = servingSize
+                servingDescription = servingSize,
+                confidence = confidence
             )
         } catch (e: Exception) {
             null
@@ -140,19 +143,19 @@ class AiFoodParserService(
     companion object {
         private const val PARSE_PROMPT = """You are a nutrition assistant. Given a food description, extract each food item with estimated nutrition per serving.
 
-Return ONLY a JSON array. Each item must have: name, calories (number), protein (number, grams), carbs (number, grams), fat (number, grams), quantity (string, like "1 medium" or "100g").
+Return ONLY a JSON array. Each item must have: name, calories (number), protein (number, grams), carbs (number, grams), fat (number, grams), quantity (string, like "1 medium" or "100g"), confidence (number, 0.0 to 1.0 — how confident you are in the nutrition values: 1.0 = exact known values, 0.7+ = well-known food, 0.4-0.7 = rough estimate, below 0.4 = guessing).
 
 Be accurate with standard USDA values. If unsure, provide reasonable estimates.
 
 Examples:
 Input: "2 scrambled eggs with toast and butter"
-Output: [{"name":"Scrambled eggs","calories":182,"protein":12.6,"carbs":1.6,"fat":13.4,"quantity":"2 large"},{"name":"White toast","calories":79,"protein":2.7,"carbs":14.8,"fat":1.0,"quantity":"1 slice"},{"name":"Butter","calories":36,"protein":0,"carbs":0,"fat":4.1,"quantity":"1 pat"}]
+Output: [{"name":"Scrambled eggs","calories":182,"protein":12.6,"carbs":1.6,"fat":13.4,"quantity":"2 large","confidence":0.85},{"name":"White toast","calories":79,"protein":2.7,"carbs":14.8,"fat":1.0,"quantity":"1 slice","confidence":0.9},{"name":"Butter","calories":36,"protein":0,"carbs":0,"fat":4.1,"quantity":"1 pat","confidence":0.9}]
 
 Input: "a big mac and medium fries"
-Output: [{"name":"Big Mac","calories":550,"protein":25,"carbs":45,"fat":30,"quantity":"1 sandwich"},{"name":"Medium fries","calories":320,"protein":5,"carbs":43,"fat":15,"quantity":"1 medium"}]
+Output: [{"name":"Big Mac","calories":550,"protein":25,"carbs":45,"fat":30,"quantity":"1 sandwich","confidence":0.95},{"name":"Medium fries","calories":320,"protein":5,"carbs":43,"fat":15,"quantity":"1 medium","confidence":0.9}]
 
 Input: "handful of almonds"
-Output: [{"name":"Almonds","calories":164,"protein":6,"carbs":6,"fat":14,"quantity":"1 oz (23 almonds)"}]
+Output: [{"name":"Almonds","calories":164,"protein":6,"carbs":6,"fat":14,"quantity":"1 oz (23 almonds)","confidence":0.7}]
 
 Now parse this:
 Input: """
@@ -164,8 +167,9 @@ Input: """
 - protein (number): grams ALWAYS as a pure number (no units)
 - carbs (number): grams ALWAYS as a pure number (no units)
 - fat (number): grams ALWAYS as a pure number (no units)
+- confidence (number): 0.0 to 1.0 — how confident you are in the values read from the label. 1.0 = clearly readable, 0.5 = partially readable, below 0.5 = hard to read.
 
-Example: {"name":"Cheerios","serving_size":"1.5 cups (58g)","calories":210,"protein":5,"carbs":44,"fat":3.5}
+Example: {"name":"Cheerios","serving_size":"1.5 cups (58g)","calories":210,"protein":5,"carbs":44,"fat":3.5,"confidence":0.95}
 
 Return ONLY the JSON object, no other text."""
     }

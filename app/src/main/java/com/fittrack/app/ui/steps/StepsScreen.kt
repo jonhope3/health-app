@@ -1,5 +1,11 @@
 package com.fittrack.app.ui.steps
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,9 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
@@ -25,8 +29,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +40,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -52,14 +56,15 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.health.connect.client.PermissionController
 import androidx.compose.foundation.Canvas
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
@@ -81,9 +86,21 @@ fun StepsScreen(
     val addStepsText by viewModel.addStepsText.collectAsState()
     val addMode by viewModel.addMode.collectAsState()
     val goalText by viewModel.goalText.collectAsState()
+    val needsHealthConnectPermissions by viewModel.needsHealthConnectPermissions.collectAsState()
+
+    val healthConnectContract = PermissionController.createRequestPermissionResultContract()
+    val healthConnectPermissionLauncher = rememberLauncherForActivityResult(
+        healthConnectContract
+    ) { viewModel.loadData() }
 
     LaunchedEffect(Unit) {
         viewModel.loadData()
+    }
+
+    LaunchedEffect(needsHealthConnectPermissions) {
+        if (needsHealthConnectPermissions) {
+            healthConnectPermissionLauncher.launch(viewModel.healthConnectService.requiredPermissions)
+        }
     }
 
     val sourceLabel = when (stepSource) {
@@ -94,6 +111,15 @@ fun StepsScreen(
 
     val distance = steps * 0.000762f
     val activeMinutes = steps / 100
+
+    val cardCount = 5
+    val cardVisible = remember { List(cardCount) { mutableStateOf(false) } }
+    LaunchedEffect(Unit) {
+        for (i in 0 until cardCount) {
+            delay(80L * i)
+            cardVisible[i].value = true
+        }
+    }
 
     ScreenScaffold {
         // Header
@@ -113,49 +139,53 @@ fun StepsScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Main step card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = AppColors.surface),
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        AnimatedVisibility(
+            visible = cardVisible[0].value,
+            enter = fadeIn(tween(300)) + slideInVertically(tween(300)) { it / 3 }
         ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = AppColors.surface),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
-                Text(
-                    text = fmtNum(steps),
-                    fontFamily = interFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 48.sp,
-                    color = AppColors.textPrimary
-                )
-                Text(
-                    text = "of ${fmtNum(stepGoal)} goal",
-                    fontFamily = interFamily,
-                    fontSize = 14.sp,
-                    color = AppColors.textSecondary
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                val progress = (steps.toFloat() / stepGoal.coerceAtLeast(1)).coerceIn(0f, 1f)
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp)),
-                    color = AppColors.primary,
-                    trackColor = AppColors.border,
-                    drawStopIndicator = {}
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = fmtNum(steps),
+                        fontFamily = interFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 48.sp,
+                        color = AppColors.textPrimary
+                    )
+                    Text(
+                        text = "of ${fmtNum(stepGoal)} goal",
+                        fontFamily = interFamily,
+                        fontSize = 14.sp,
+                        color = AppColors.textSecondary
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    val progress = (steps.toFloat() / stepGoal.coerceAtLeast(1)).coerceIn(0f, 1f)
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp)),
+                        color = AppColors.primary,
+                        trackColor = AppColors.border,
+                        drawStopIndicator = {}
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 3. Stats row
+        // Stats row
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -184,7 +214,6 @@ fun StepsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 4. Add Steps button (manual, pedometer, or to override health connect)
         if (stepSource == "manual" || stepSource == "pedometer" || stepSource == "health_connect") {
             Button(
                 onClick = { viewModel.showAddDialog() },
@@ -200,179 +229,199 @@ fun StepsScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // 5. Calorie Balance card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = AppColors.surface),
-            shape = RoundedCornerShape(12.dp)
+        // Calorie Balance card with animated bar
+        AnimatedVisibility(
+            visible = cardVisible[1].value,
+            enter = fadeIn(tween(300)) + slideInVertically(tween(300)) { it / 3 }
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "Calorie Balance",
-                    fontFamily = interFamily,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp,
-                    color = AppColors.textPrimary
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "Consumed",
-                            fontFamily = interFamily,
-                            fontSize = 12.sp,
-                            color = AppColors.textSecondary
-                        )
-                        Text(
-                            text = fmtNum(caloriesConsumed),
-                            fontFamily = interFamily,
-                            fontWeight = FontWeight.SemiBold,
-                            color = AppColors.calorie
-                        )
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "Burned",
-                            fontFamily = interFamily,
-                            fontSize = 12.sp,
-                            color = AppColors.textSecondary
-                        )
-                        Text(
-                            text = fmtNum(caloriesBurned),
-                            fontFamily = interFamily,
-                            fontWeight = FontWeight.SemiBold,
-                            color = AppColors.success
-                        )
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "Net",
-                            fontFamily = interFamily,
-                            fontSize = 12.sp,
-                            color = AppColors.textSecondary
-                        )
-                        val net = caloriesConsumed - caloriesBurned
-                        Text(
-                            text = fmtNum(net),
-                            fontFamily = interFamily,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (net > 0) AppColors.calorie else AppColors.success
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                // Calorie balance bar — consumed (orange) vs burned (blue)
-                val total = (caloriesConsumed + caloriesBurned).coerceAtLeast(1)
-                val consumedRatio = (caloriesConsumed.toFloat() / total).coerceIn(0.05f, 0.95f)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp)),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .weight(consumedRatio)
-                            .fillMaxHeight()
-                            .background(AppColors.calorie)
+            val total = (caloriesConsumed + caloriesBurned).coerceAtLeast(1)
+            val targetRatio = (caloriesConsumed.toFloat() / total).coerceIn(0.05f, 0.95f)
+            val animatedRatio by animateFloatAsState(
+                targetValue = targetRatio,
+                animationSpec = tween(800, easing = FastOutSlowInEasing),
+                label = "calorieBar"
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = AppColors.surface),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Calorie Balance",
+                        fontFamily = interFamily,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 16.sp,
+                        color = AppColors.textPrimary
                     )
-                    Box(
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "Consumed",
+                                fontFamily = interFamily,
+                                fontSize = 12.sp,
+                                color = AppColors.textSecondary
+                            )
+                            Text(
+                                text = fmtNum(caloriesConsumed),
+                                fontFamily = interFamily,
+                                fontWeight = FontWeight.SemiBold,
+                                color = AppColors.calorie
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "Burned",
+                                fontFamily = interFamily,
+                                fontSize = 12.sp,
+                                color = AppColors.textSecondary
+                            )
+                            Text(
+                                text = fmtNum(caloriesBurned),
+                                fontFamily = interFamily,
+                                fontWeight = FontWeight.SemiBold,
+                                color = AppColors.success
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "Net",
+                                fontFamily = interFamily,
+                                fontSize = 12.sp,
+                                color = AppColors.textSecondary
+                            )
+                            val net = caloriesConsumed - caloriesBurned
+                            Text(
+                                text = fmtNum(net),
+                                fontFamily = interFamily,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (net > 0) AppColors.calorie else AppColors.success
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
                         modifier = Modifier
-                            .weight(1f - consumedRatio)
-                            .fillMaxHeight()
-                            .background(AppColors.success)
-                    )
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("● Consumed", fontFamily = interFamily, fontSize = 10.sp, color = AppColors.calorie)
-                    Text("● Burned", fontFamily = interFamily, fontSize = 10.sp, color = AppColors.success)
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp)),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(animatedRatio)
+                                .fillMaxHeight()
+                                .background(AppColors.calorie)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .weight(1f - animatedRatio)
+                                .fillMaxHeight()
+                                .background(AppColors.success)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("● Consumed", fontFamily = interFamily, fontSize = 10.sp, color = AppColors.calorie)
+                        Text("● Burned", fontFamily = interFamily, fontSize = 10.sp, color = AppColors.success)
+                    }
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 6. Step History card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = AppColors.surface),
-            shape = RoundedCornerShape(12.dp)
+        // Step History card
+        AnimatedVisibility(
+            visible = cardVisible[2].value,
+            enter = fadeIn(tween(300)) + slideInVertically(tween(300)) { it / 3 }
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "Step History",
-                    fontFamily = interFamily,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp,
-                    color = AppColors.textPrimary
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                val reversedHistory = stepsHistory.reversed()
-                val dayNames = reversedHistory.map { (date, _) ->
-                    LocalDate.parse(date).dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-                }
-                val stepValues = reversedHistory.map { it.second }
-                if (stepValues.isNotEmpty()) {
-                    HistoryChart(
-                        values = stepValues,
-                        dayNames = dayNames,
-                        barColor = AppColors.steps,
-                        formatValue = { if (it >= 1000) "${it / 1000}k" else it.toString() }
-                    )
-                } else {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = AppColors.surface),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "No step data yet",
+                        text = "Step History",
                         fontFamily = interFamily,
-                        fontSize = 14.sp,
-                        color = AppColors.textSecondary,
-                        modifier = Modifier.padding(32.dp)
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 16.sp,
+                        color = AppColors.textPrimary
                     )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    val reversedHistory = stepsHistory.reversed()
+                    val dayNames = reversedHistory.map { (date, _) ->
+                        LocalDate.parse(date).dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+                    }
+                    val stepValues = reversedHistory.map { it.second }
+                    if (stepValues.isNotEmpty()) {
+                        HistoryChart(
+                            values = stepValues,
+                            dayNames = dayNames,
+                            barColor = AppColors.steps,
+                            formatValue = { if (it >= 1000) "${it / 1000}k" else it.toString() }
+                        )
+                    } else {
+                        Text(
+                            text = "No step data yet",
+                            fontFamily = interFamily,
+                            fontSize = 14.sp,
+                            color = AppColors.textSecondary,
+                            modifier = Modifier.padding(32.dp)
+                        )
+                    }
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 7. Calorie History card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = AppColors.surface),
-            shape = RoundedCornerShape(12.dp)
+        // Calorie History card
+        AnimatedVisibility(
+            visible = cardVisible[3].value,
+            enter = fadeIn(tween(300)) + slideInVertically(tween(300)) { it / 3 }
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "Calorie History",
-                    fontFamily = interFamily,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp,
-                    color = AppColors.textPrimary
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                val revCalHistory = caloriesHistory.reversed()
-                val dayNames = revCalHistory.map { (date, _) ->
-                    LocalDate.parse(date).dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-                }
-                val calorieValues = revCalHistory.map { it.second }
-                if (calorieValues.isNotEmpty() && calorieValues.any { it > 0 }) {
-                    HistoryChart(
-                        values = calorieValues,
-                        dayNames = dayNames,
-                        barColor = AppColors.calorie,
-                        formatValue = { it.toString() }
-                    )
-                } else {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = AppColors.surface),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "No calorie data yet",
+                        text = "Calorie History",
                         fontFamily = interFamily,
-                        fontSize = 14.sp,
-                        color = AppColors.textSecondary,
-                        modifier = Modifier.padding(32.dp)
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 16.sp,
+                        color = AppColors.textPrimary
                     )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    val revCalHistory = caloriesHistory.reversed()
+                    val dayNames = revCalHistory.map { (date, _) ->
+                        LocalDate.parse(date).dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+                    }
+                    val calorieValues = revCalHistory.map { it.second }
+                    if (calorieValues.isNotEmpty() && calorieValues.any { it > 0 }) {
+                        HistoryChart(
+                            values = calorieValues,
+                            dayNames = dayNames,
+                            barColor = AppColors.calorie,
+                            formatValue = { it.toString() }
+                        )
+                    } else {
+                        Text(
+                            text = "No calorie data yet",
+                            fontFamily = interFamily,
+                            fontSize = 14.sp,
+                            color = AppColors.textSecondary,
+                            modifier = Modifier.padding(32.dp)
+                        )
+                    }
                 }
             }
         }
@@ -507,6 +556,15 @@ private fun HistoryChart(
     )
     val maxValue = (values.maxOrNull() ?: 1).coerceAtLeast(1)
 
+    val revealProgress = remember { Animatable(0f) }
+    LaunchedEffect(values) {
+        revealProgress.snapTo(0f)
+        revealProgress.animateTo(
+            1f,
+            animationSpec = tween(900, easing = FastOutSlowInEasing)
+        )
+    }
+
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
@@ -520,7 +578,6 @@ private fun HistoryChart(
         val chartHeight = size.height - bottomPadding - topPadding
         val slotWidth = size.width / count
 
-        // Compute point positions
         val points = values.mapIndexed { i, v ->
             val x = slotWidth * i + slotWidth / 2f
             val y = topPadding + chartHeight - (v.toFloat() / maxValue) * chartHeight
@@ -554,31 +611,48 @@ private fun HistoryChart(
             isAntiAlias = true
         }
 
-        // Draw connecting lines
+        val t = revealProgress.value
+        val totalPoints = points.size.toFloat()
+
         for (i in 0 until points.size - 1) {
+            val segProgress = ((t * totalPoints) - i).coerceIn(0f, 1f)
+            if (segProgress <= 0f) continue
             val (x1, y1) = points[i]
             val (x2, y2) = points[i + 1]
-            drawContext.canvas.nativeCanvas.drawLine(x1, y1, x2, y2, linePaint)
+            val ex = x1 + (x2 - x1) * segProgress
+            val ey = y1 + (y2 - y1) * segProgress
+            linePaint.alpha = (255 * segProgress.coerceAtMost(1f)).toInt()
+            drawContext.canvas.nativeCanvas.drawLine(x1, y1, ex, ey, linePaint)
         }
 
-        // Draw dots and labels
         points.forEachIndexed { i, (x, y) ->
-            // Dot
-            drawContext.canvas.nativeCanvas.drawCircle(x, y, 8f, dotPaint)
-            // White center
+            val pointProgress = ((t * totalPoints) - i).coerceIn(0f, 1f)
+            if (pointProgress <= 0f) return@forEachIndexed
+
+            val scale = if (pointProgress < 0.5f) {
+                pointProgress * 2f * 1.3f
+            } else {
+                1.3f - (pointProgress - 0.5f) * 2f * 0.3f
+            }
+
+            val dotRadius = 8f * scale
+            dotPaint.alpha = (255 * pointProgress).toInt()
+            drawContext.canvas.nativeCanvas.drawCircle(x, y, dotRadius, dotPaint)
             drawContext.canvas.nativeCanvas.drawCircle(
-                x, y, 4f,
+                x, y, dotRadius * 0.5f,
                 android.graphics.Paint().apply {
                     color = android.graphics.Color.WHITE
                     isAntiAlias = true
                     style = android.graphics.Paint.Style.FILL
                 }
             )
-            // Day label
+
+            labelPaint.alpha = (255 * pointProgress).toInt()
             val label = dayNames.getOrElse(i) { "" }
             drawContext.canvas.nativeCanvas.drawText(label, x, size.height - 4f, labelPaint)
-            // Value above dot (only if > 0)
-            if (values[i] > 0) {
+
+            if (values[i] > 0 && pointProgress > 0.3f) {
+                valuePaint.alpha = (255 * ((pointProgress - 0.3f) / 0.7f).coerceIn(0f, 1f)).toInt()
                 drawContext.canvas.nativeCanvas.drawText(formatValue(values[i]), x, y - 10f, valuePaint)
             }
         }

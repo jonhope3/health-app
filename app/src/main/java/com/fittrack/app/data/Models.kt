@@ -28,7 +28,8 @@ data class NutritionResult(
     val protein: Float,
     val carbs: Float,
     val fat: Float,
-    val servingDescription: String? = null
+    val servingDescription: String? = null,
+    val confidence: Float? = null
 )
 
 @Serializable
@@ -52,5 +53,6 @@ data class ParsedFoodItem(
     val protein: Float,
     val carbs: Float,
     val fat: Float,
-    val quantity: String = "1 serving"
+    val quantity: String = "1 serving",
+    val confidence: Float? = null
 )

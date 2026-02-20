@@ -17,4 +17,10 @@ class GoalsRepository(context: Context) {
 
     fun getHeightIn(): Float = prefs.getFloat("height_in", 68f)
     fun setHeightIn(h: Float) { prefs.edit().putFloat("height_in", h).apply() }
+
+    fun getNickname(): String = prefs.getString("nickname", "") ?: ""
+    fun setNickname(name: String) { prefs.edit().putString("nickname", name.trim()).apply() }
+
+    fun hasCompletedOnboarding(): Boolean = prefs.getBoolean("onboarding_done", false)
+    fun setOnboardingCompleted() { prefs.edit().putBoolean("onboarding_done", true).apply() }
 }

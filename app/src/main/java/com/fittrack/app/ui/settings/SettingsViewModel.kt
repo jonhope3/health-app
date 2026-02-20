@@ -40,6 +40,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _heightIn = MutableStateFlow("")
     val heightIn: StateFlow<String> = _heightIn.asStateFlow()
 
+    private val _nickname = MutableStateFlow("")
+    val nickname: StateFlow<String> = _nickname.asStateFlow()
+
     init {
         ensureDefaults()
         loadData()
@@ -48,9 +51,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     private fun ensureDefaults() {
         val app = getApplication<Application>()
-        // If goals are empty, populate with system defaults so they are "visible" in DB
         val p = app.getSharedPreferences("fittrack_goals", Context.MODE_PRIVATE)
-        if (p.all.isEmpty()) {
+        if (!p.contains("calorie_goal")) {
             p.edit()
                 .putInt("calorie_goal", 2000)
                 .putInt("step_goal", 10000)
@@ -58,8 +60,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 .putFloat("height_in", 68f)
                 .apply()
         }
-        
-        // Initialize food containers if missing
+
         val f = app.getSharedPreferences("fittrack_food", Context.MODE_PRIVATE)
         if (f.getString("custom_foods", null) == null) {
             f.edit().putString("custom_foods", "[]").apply()
@@ -86,6 +87,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val totalInches = goalsRepository.getHeightIn()
         _heightFt.value = (totalInches / 12).toInt().toString()
         _heightIn.value = (totalInches % 12).toInt().toString()
+        _nickname.value = goalsRepository.getNickname()
     }
 
     fun setCalorieGoal(v: String) { _calorieGoal.value = v.filter { it.isDigit() } }
@@ -93,6 +95,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setWeightLbs(v: String) { _weightLbs.value = v.filter { it.isDigit() || it == '.' } }
     fun setHeightFt(v: String) { _heightFt.value = v.filter { it.isDigit() } }
     fun setHeightIn(v: String) { _heightIn.value = v.filter { it.isDigit() } }
+    fun setNickname(v: String) { _nickname.value = v }
 
     fun save() {
         _calorieGoal.value.toIntOrNull()?.let { if (it in 500..10000) goalsRepository.setCalorieGoal(it) }
@@ -102,6 +105,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val inches = _heightIn.value.toIntOrNull() ?: 0
         val totalInches = ft * 12f + inches
         if (totalInches in 36f..96f) goalsRepository.setHeightIn(totalInches)
+        val nick = _nickname.value.trim()
+        if (nick.isNotEmpty()) goalsRepository.setNickname(nick)
     }
 
     private fun fmtNum(v: Float): String {

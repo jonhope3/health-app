@@ -85,7 +85,7 @@ fun DiaryItemCard(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "${fmtNum(entry.calories)} kcal",
+                        text = "${fmtNum(entry.calories)} cal",
                         fontFamily = interFamily,
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.bodyMedium,
