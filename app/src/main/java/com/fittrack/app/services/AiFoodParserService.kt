@@ -75,10 +75,10 @@ class AiFoodParserService(
 
                 ParsedFoodItem(
                     name = name,
-                    calories = calories,
-                    protein = round1(item["protein"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 0.0),
-                    carbs = round1(item["carbs"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 0.0),
-                    fat = round1(item["fat"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 0.0),
+                    calories = safeDouble(item["calories"]?.jsonPrimitive?.content).toInt(),
+                    protein = round1(safeDouble(item["protein"]?.jsonPrimitive?.content)),
+                    carbs = round1(safeDouble(item["carbs"]?.jsonPrimitive?.content)),
+                    fat = round1(safeDouble(item["fat"]?.jsonPrimitive?.content)),
                     quantity = item["quantity"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() } ?: "1 serving"
                 )
             }
@@ -117,15 +117,22 @@ class AiFoodParserService(
 
             NutritionResult(
                 name = name,
-                calories = calories,
-                protein = round1(jsonObj["protein"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 0.0),
-                carbs = round1(jsonObj["carbs"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 0.0),
-                fat = round1(jsonObj["fat"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 0.0),
+                calories = safeDouble(jsonObj["calories"]?.jsonPrimitive?.content).toInt(),
+                protein = round1(safeDouble(jsonObj["protein"]?.jsonPrimitive?.content)),
+                carbs = round1(safeDouble(jsonObj["carbs"]?.jsonPrimitive?.content)),
+                fat = round1(safeDouble(jsonObj["fat"]?.jsonPrimitive?.content)),
                 servingDescription = servingSize
             )
         } catch (e: Exception) {
             null
         }
+    }
+
+    private fun safeDouble(text: String?): Double {
+        if (text == null) return 0.0
+        // Use regex to find the first numeric part (e.g. "1.5g" -> "1.5")
+        val match = Regex("""([\d.]+)""").find(text)
+        return match?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0
     }
 
     private fun round1(n: Double): Float = (kotlin.math.round(n * 10) / 10.0).toFloat()
@@ -152,13 +159,13 @@ Input: """
 
         private const val LABEL_PROMPT = """Read the nutrition facts label in this image. Return ONLY a JSON object with these fields:
 - name (string): the product name if visible, otherwise "Unknown"
-- serving_size (string): the serving size shown on the label
-- calories (number): calories per serving
-- protein (number): grams of protein per serving
-- carbs (number): grams of total carbohydrates per serving
-- fat (number): grams of total fat per serving
+- serving_size (string): the serving size shown on the label. Prefer decimals (e.g. "1.5 cups" instead of "1 1/2 cups") if possible.
+- calories (number): calories ALWAYS as a pure number (no units)
+- protein (number): grams ALWAYS as a pure number (no units)
+- carbs (number): grams ALWAYS as a pure number (no units)
+- fat (number): grams ALWAYS as a pure number (no units)
 
-Example: {"name":"Cheerios","serving_size":"1 cup (39g)","calories":140,"protein":5,"carbs":29,"fat":2.5}
+Example: {"name":"Cheerios","serving_size":"1.5 cups (58g)","calories":210,"protein":5,"carbs":44,"fat":3.5}
 
 Return ONLY the JSON object, no other text."""
     }

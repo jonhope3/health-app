@@ -60,15 +60,27 @@ enum class MeasureUnit(val label: String, val gramsPerUnit: Float, val presets: 
 @Composable
 fun NutritionCard(
     result: NutritionResult,
-    onAdd: (NutritionResult, Float, String) -> Unit
+    onAdd: (String, NutritionResult, Float, String) -> Unit
 ) {
-    var amount by remember { mutableStateOf("100") }
-    var selectedUnit by remember { mutableStateOf(MeasureUnit.GRAMS) }
+    val parsedInfo = remember(result) { com.fittrack.app.util.parseServingSize(result.servingDescription) }
+    
+    var name by remember(result) { mutableStateOf(result.name) }
+    var amount by remember(result) { 
+        val fmt = if (parsedInfo.amount == parsedInfo.amount.toInt().toFloat()) 
+            parsedInfo.amount.toInt().toString() 
+        else "%.1f".format(parsedInfo.amount)
+        mutableStateOf(fmt) 
+    }
+    var selectedUnit by remember(result) { mutableStateOf(parsedInfo.unit) }
     var unitMenuExpanded by remember { mutableStateOf(false) }
 
-    val amountValue = amount.toFloatOrNull() ?: 0f
+    val amountValue = amount.replace(",", ".").toFloatOrNull() ?: 0f
     val gramsValue = selectedUnit.toGrams(amountValue)
-    val factor = (gramsValue / 100f).coerceAtLeast(0.01f)
+    val factor = if (selectedUnit == parsedInfo.unit) {
+        amountValue / parsedInfo.amount.coerceAtLeast(0.1f)
+    } else {
+        (amountValue * selectedUnit.gramsPerUnit) / parsedInfo.baseGrams.coerceAtLeast(1f)
+    }
 
     val scaledCalories = (result.calories * factor).toInt()
     val scaledProtein = result.protein * factor
@@ -87,12 +99,17 @@ fun NutritionCard(
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            Text(
-                text = result.name,
-                fontFamily = interFamily,
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.titleLarge,
-                color = AppColors.textPrimary
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Food Name", fontFamily = interFamily) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                textStyle = MaterialTheme.typography.titleMedium.copy(
+                    fontFamily = interFamily,
+                    fontWeight = FontWeight.Bold,
+                    color = AppColors.textPrimary
+                )
             )
 
             if (result.servingDescription != null) {
@@ -158,9 +175,9 @@ fun NutritionCard(
                                         if (selectedUnit != unit) {
                                             val currentGrams = selectedUnit.toGrams(amountValue)
                                             val converted = currentGrams / unit.gramsPerUnit
-                                            amount = if (converted == converted.toLong().toFloat())
-                                                converted.toLong().toString()
-                                            else "%.1f".format(converted)
+                                            amount = if (converted == converted.toInt().toFloat())
+                                                converted.toInt().toString()
+                                            else "%.1f".format(java.util.Locale.US, converted)
                                         }
                                         selectedUnit = unit
                                         unitMenuExpanded = false
@@ -216,10 +233,14 @@ fun NutritionCard(
 
             Button(
                 onClick = {
-                    val qtyDisplay = if (amountValue == amountValue.toLong().toFloat())
-                        "${amountValue.toLong()} ${selectedUnit.label}"
-                    else "${"%.1f".format(amountValue)} ${selectedUnit.label}"
-                    onAdd(result, gramsValue, qtyDisplay)
+                    val qtyDisplay = if (selectedUnit == MeasureUnit.GRAMS) {
+                        if (amountValue == amountValue.toInt().toFloat()) "${amountValue.toInt()}g"
+                        else "${"%.1f".format(amountValue)}g"
+                    } else {
+                        if (amountValue == amountValue.toInt().toFloat()) "${amountValue.toInt()} ${selectedUnit.label}"
+                        else "${"%.1f".format(amountValue)} ${selectedUnit.label}"
+                    }
+                    onAdd(name, result, gramsValue, qtyDisplay)
                 },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.primary, contentColor = AppColors.textOnPrimary)

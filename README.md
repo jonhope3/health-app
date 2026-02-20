@@ -104,3 +104,92 @@ This setup uses shared paths for the SDK location.
 ### Troubleshooting
 
 If you encounter SDK location errors, ensure that `local.properties` points to the correct directory where your Android SDK is installed for your specific machine.
+
+---
+
+## UI Testing & Screenshots
+
+You can take screenshots and interact with the app programmatically using ADB — no need to manually tap the device.
+
+### Prerequisite: Ensure ADB is connected
+
+```bash
+# List connected devices (emulator + physical phone)
+adb devices
+
+# Target emulator only
+adb -e <command>
+
+# Target physical phone only  
+adb -d <command>
+```
+
+### Take a Screenshot
+
+```bash
+# Capture to device, then pull to your Mac
+adb -d shell screencap -p /sdcard/screen.png
+adb -d pull /sdcard/screen.png ~/Desktop/screen.png
+
+# One-liner: emulator
+adb -e shell screencap -p /sdcard/screen.png && adb -e pull /sdcard/screen.png /tmp/screen.png
+```
+
+### Navigate Between Screens Programmatically
+
+The app uses a bottom navigation bar with 4 tabs. Tap coordinates are based on the screen width divided into quarters.
+
+```bash
+# First: get screen size
+adb -d shell wm size
+# → Physical size: 1080x2400
+
+# Tap bottom nav tabs (y ≈ 90% of screen height)
+# Home (leftmost tab)
+adb -d shell input tap 135 2160
+
+# Log Food
+adb -d shell input tap 405 2160
+
+# Steps
+adb -d shell input tap 675 2160
+
+# Settings
+adb -d shell input tap 945 2160
+```
+
+### Launch the App
+
+```bash
+adb -d shell am start -n com.fittrack.app/.MainActivity
+```
+
+### Wake Device / Dismiss Lock Screen
+
+```bash
+adb -d shell input keyevent 26   # Power button (wake)
+adb -d shell input keyevent 82   # Menu key (dismiss lock)
+```
+
+### Full Screenshot Workflow Example
+
+```bash
+# Wake phone, open app, wait, take screenshot of each tab
+adb -d shell input keyevent 26 && sleep 1
+adb -d shell am start -n com.fittrack.app/.MainActivity && sleep 2
+
+for tab in 135 405 675 945; do
+  adb -d shell input tap $tab 2160 && sleep 1
+  adb -d shell screencap -p /sdcard/tab_$tab.png
+  adb -d pull /sdcard/tab_$tab.png /tmp/tab_$tab.png
+done
+```
+
+### Deploy to Physical Phone
+
+```bash
+make phone
+```
+
+This builds the debug APK and installs it on your connected USB phone automatically.
+

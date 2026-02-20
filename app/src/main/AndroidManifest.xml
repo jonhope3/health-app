@@ -23,15 +23,34 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Health Connect Rationale -->
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+            
+            <property
+                android:name="android.health.PROPERTY_HEALTH_CONNECT_PERMISSION_RATIONALE_ACTIVITY"
+                android:value="com.fittrack.app.MainActivity" />
+            
+            <meta-data android:name="health_permissions_rationale" android:value="com.fittrack.app.MainActivity" />
         </activity>
 
-        <activity
-            android:name="androidx.health.connect.client.permission.HealthConnectRequestPermissionsActivity"
-            android:exported="false" />
+        <meta-data
+            android:name="androidx.health.connect.RATIONALE_VIEW_INTENT"
+            android:value="com.fittrack.app.MainActivity" />
     </application>
 
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
+        <package android:name="com.google.android.healthconnect.controller" />
     </queries>
 
 </manifest>
+

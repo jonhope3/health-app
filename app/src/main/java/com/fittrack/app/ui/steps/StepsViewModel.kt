@@ -35,6 +35,9 @@ class StepsViewModel(application: Application) : AndroidViewModel(application) {
     private val _stepsHistory = MutableStateFlow<List<Pair<String, Int>>>(emptyList())
     val stepsHistory: StateFlow<List<Pair<String, Int>>> = _stepsHistory.asStateFlow()
 
+    private val _caloriesHistory = MutableStateFlow<List<Pair<String, Int>>>(emptyList())
+    val caloriesHistory: StateFlow<List<Pair<String, Int>>> = _caloriesHistory.asStateFlow()
+
     private val _caloriesConsumed = MutableStateFlow(0)
     val caloriesConsumed: StateFlow<Int> = _caloriesConsumed.asStateFlow()
 
@@ -53,8 +56,27 @@ class StepsViewModel(application: Application) : AndroidViewModel(application) {
     private val _addMode = MutableStateFlow("add")
     val addMode: StateFlow<String> = _addMode.asStateFlow()
 
+    private val _needsHealthConnectPermissions = MutableStateFlow(false)
+    val needsHealthConnectPermissions: StateFlow<Boolean> = _needsHealthConnectPermissions.asStateFlow()
+
     private val _goalText = MutableStateFlow("")
     val goalText: StateFlow<String> = _goalText.asStateFlow()
+
+    private var pollingJob: kotlinx.coroutines.Job? = null
+
+    init {
+        startPolling()
+    }
+
+    private fun startPolling() {
+        pollingJob?.cancel()
+        pollingJob = viewModelScope.launch {
+            while (true) {
+                loadData()
+                kotlinx.coroutines.delay(30000) // Poll every 30 seconds
+            }
+        }
+    }
 
     val distance: Float
         get() = _steps.value * 0.000762f
@@ -72,18 +94,28 @@ class StepsViewModel(application: Application) : AndroidViewModel(application) {
 
                 // 1. Try Health Connect
                 try {
-                    if (healthConnectService.isAvailable(app) && healthConnectService.initialize(app)) {
-                        val stepsToday = healthConnectService.readStepsToday()
-                        val history = healthConnectService.readStepsHistory(7)
-                        val burned = healthConnectService.readCaloriesBurnedToday()
+                    if (healthConnectService.isAvailable(app)) {
+                        val initialized = healthConnectService.initialize(app)
+                        if (initialized) {
+                            val stepsToday = healthConnectService.readStepsToday()
+                            val history = healthConnectService.readStepsHistory(7)
+                            val burned = healthConnectService.readCaloriesBurnedToday()
 
-                        _steps.update { stepsToday }
-                        _stepsHistory.update { history }
-                        _caloriesBurned.update { burned }
-                        _stepSource.update { "health_connect" }
-                        loaded = true
+                            _steps.update { stepsToday }
+                            _stepsHistory.update { history }
+                            _caloriesBurned.update { burned }
+                            _stepSource.update { "health_connect" }
+                            _needsHealthConnectPermissions.value = false
+                            loaded = true
+                        } else {
+                            _needsHealthConnectPermissions.value = true
+                        }
+                    } else {
+                        _needsHealthConnectPermissions.value = false
                     }
-                } catch (_: Exception) { }
+                } catch (_: Exception) {
+                    _needsHealthConnectPermissions.value = false
+                }
 
                 // 2. Try Pedometer
                 if (!loaded) {
@@ -121,6 +153,7 @@ class StepsViewModel(application: Application) : AndroidViewModel(application) {
 
                 _stepGoal.update { goalsRepository.getStepGoal() }
                 _caloriesConsumed.update { foodRepository.getTotalCaloriesToday() }
+                _caloriesHistory.update { foodRepository.getCaloriesHistory(7) }
             } catch (_: Exception) {
                 _stepSource.update { "manual" }
             }
@@ -144,11 +177,9 @@ class StepsViewModel(application: Application) : AndroidViewModel(application) {
             stepsRepository.saveSteps(value, today)
         }
 
-        // When manually adding, switch to manual to avoid sensor/Health Connect overwriting
+        // When manually adding, switch to manual to avoid sensor overwriting local manual
         if (_stepSource.value == "pedometer") {
             pedometerService.stop()
-        }
-        if (_stepSource.value == "pedometer" || _stepSource.value == "health_connect") {
             _stepSource.update { "manual" }
         }
 

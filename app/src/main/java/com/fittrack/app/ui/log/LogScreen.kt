@@ -1,60 +1,59 @@
 package com.fittrack.app.ui.log
 
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material3.*
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.zIndex
+import com.fittrack.app.data.FoodItem
+import com.fittrack.app.data.DiaryItem
+import com.fittrack.app.data.NutritionResult
+import com.fittrack.app.theme.AppColors
+import com.fittrack.app.theme.interFamily
+import com.fittrack.app.util.fmtNum
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SmartToy
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SmartToy
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.fittrack.app.data.CustomFood
-import com.fittrack.app.data.NutritionResult
-import com.fittrack.app.theme.AppColors
-import com.fittrack.app.theme.interFamily
-import com.fittrack.app.util.fmtNum
 
 @Composable
 fun LogScreen(
@@ -81,6 +80,8 @@ fun LogScreen(
     val scanResult by viewModel.scanResult.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
     val scanError by viewModel.scanError.collectAsState()
+    val showAllFoods by viewModel.showAllFoods.collectAsState()
+    val allCustomFoods by viewModel.allCustomFoods.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.loadData()
@@ -90,8 +91,18 @@ fun LogScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp)
+            .padding(top = 16.dp, start = 16.dp, end = 16.dp, bottom = 24.dp)
     ) {
+        Text(
+            text = "Log Food",
+            fontFamily = interFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 32.sp,
+            color = AppColors.textPrimary
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         SummaryCard(
             caloriesEaten = caloriesEaten,
             calorieGoal = calorieGoal
@@ -116,7 +127,7 @@ fun LogScreen(
                 searchError = searchError,
                 customFoodSuggestions = customFoodSuggestions,
                 onSelectCustomFood = { viewModel.selectCustomFoodSuggestion(it) },
-                onAddFromSearch = { result, grams, unitLabel -> viewModel.addFromSearch(result, grams, unitLabel) }
+                onAddFromSearch = { targetName, result, grams, unitLabel -> viewModel.addFromSearch(targetName, result, grams, unitLabel) }
             )
             "ai" -> AiModeContent(
                 aiInput = aiInput,
@@ -134,7 +145,7 @@ fun LogScreen(
                 scanResult = scanResult,
                 scanError = scanError,
                 onScan = { bitmap -> viewModel.scanNutritionLabel(bitmap) },
-                onAddFromScan = { result, grams, unitLabel -> viewModel.addFromSearch(result, grams, unitLabel) },
+                onAddFromScan = { targetName, result, grams, unitLabel -> viewModel.addFromSearch(targetName, result, grams, unitLabel) },
                 onClearScan = { viewModel.clearScanResult() }
             )
             "manual" -> ManualModeContent(
@@ -154,31 +165,98 @@ fun LogScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Food Diary",
+                fontFamily = interFamily,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleLarge,
+                color = AppColors.textPrimary
+            )
+            TextButton(onClick = { viewModel.toggleShowAllFoods(true) }) {
+                Text(
+                    text = "Browse History",
+                    fontFamily = interFamily,
+                    color = AppColors.primary
+                )
+            }
+        }
 
-        Text(
-            text = "Today's Food",
-            fontFamily = interFamily,
-            fontWeight = FontWeight.Bold,
-            style = MaterialTheme.typography.titleLarge,
-            color = AppColors.textPrimary
-        )
+        Spacer(modifier = Modifier.height(16.dp))
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        foodLog.forEach { entry ->
-            FoodItemCard(
+        foodLog.forEachIndexed { index, entry ->
+            TimelineDiaryItem(
                 entry = entry,
+                isFirst = index == 0,
+                isLast = index == foodLog.size - 1,
                 onEdit = { viewModel.startEdit(entry) },
                 onDelete = { viewModel.removeEntry(entry.id) }
             )
-            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 
     val editingEntry by viewModel.editingEntry.collectAsState()
     if (editingEntry != null) {
         EditFoodDialog(viewModel = viewModel)
+    }
+
+    if (showAllFoods) {
+        AllFoodsDialog(
+            foods = allCustomFoods,
+            onDismiss = { viewModel.toggleShowAllFoods(false) },
+            onSelect = { 
+                viewModel.selectCustomFoodSuggestion(it)
+                viewModel.toggleShowAllFoods(false)
+            },
+            onRemove = { viewModel.removeFoodFromHistory(it.name) }
+        )
+    }
+}
+
+@Composable
+private fun TimelineDiaryItem(
+    entry: DiaryItem,
+    isFirst: Boolean,
+    isLast: Boolean,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.width(32.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(2.dp)
+                    .height(24.dp)
+                    .background(if (isFirst) Color.Transparent else AppColors.border)
+            )
+            Box(
+                modifier = Modifier
+                    .size(12.dp)
+                    .background(AppColors.primary, CircleShape)
+                    .border(2.dp, AppColors.surface, CircleShape)
+            )
+            Box(
+                modifier = Modifier
+                    .width(2.dp)
+                    .fillMaxHeight()
+                    .background(if (isLast) Color.Transparent else AppColors.border)
+            )
+        }
+        
+        Column(modifier = Modifier.padding(bottom = 16.dp, start = 8.dp)) {
+            DiaryItemCard(entry, onEdit, onDelete)
+        }
     }
 }
 
@@ -209,9 +287,11 @@ private fun SummaryCard(
                 progress = { progress },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(8.dp),
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp)),
                 color = AppColors.primary,
-                trackColor = AppColors.surfaceVariant
+                trackColor = AppColors.surfaceVariant,
+                drawStopIndicator = {}
             )
         }
     }
@@ -222,33 +302,102 @@ private fun ModeToggleRow(
     mode: String,
     onModeChange: (String) -> Unit
 ) {
-    Row(
+    val modes = listOf(
+        Triple("search", "Search", Icons.Filled.Search),
+        Triple("ai", "AI", Icons.Filled.SmartToy),
+        Triple("scan", "Scan", Icons.Filled.CameraAlt),
+        Triple("manual", "Manual", Icons.Filled.Add)
+    )
+
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        listOf("search" to "Search", "ai" to "AI", "scan" to "Scan", "manual" to "Manual").forEach { (id, label) ->
-            FilterChip(
-                selected = mode == id,
-                onClick = { onModeChange(id) },
-                label = {
-                    Text(
-                        text = label,
-                        fontFamily = interFamily,
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                },
-                leadingIcon = when (id) {
-                    "search" -> { { Icon(Icons.Filled.Search, contentDescription = null, modifier = Modifier.padding(end = 4.dp)) } }
-                    "ai" -> { { Icon(Icons.Filled.SmartToy, contentDescription = null, modifier = Modifier.padding(end = 4.dp)) } }
-                    "scan" -> { { Icon(Icons.Filled.CameraAlt, contentDescription = null, modifier = Modifier.padding(end = 4.dp)) } }
-                    "manual" -> { { Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.padding(end = 4.dp)) } }
-                    else -> null
-                },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = AppColors.primary,
-                    selectedLabelColor = AppColors.textOnPrimary,
-                    selectedLeadingIconColor = AppColors.textOnPrimary
-                )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            ModeCard(
+                modeItem = modes[0],
+                isSelected = mode == modes[0].first,
+                onModeChange = onModeChange,
+                modifier = Modifier.weight(1f)
+            )
+            ModeCard(
+                modeItem = modes[1],
+                isSelected = mode == modes[1].first,
+                onModeChange = onModeChange,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            ModeCard(
+                modeItem = modes[2],
+                isSelected = mode == modes[2].first,
+                onModeChange = onModeChange,
+                modifier = Modifier.weight(1f)
+            )
+            ModeCard(
+                modeItem = modes[3],
+                isSelected = mode == modes[3].first,
+                onModeChange = onModeChange,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ModeCard(
+    modeItem: Triple<String, String, ImageVector>,
+    isSelected: Boolean,
+    onModeChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val (id, label, icon) = modeItem
+    
+    val containerColor by animateColorAsState(
+        if (isSelected) AppColors.primary else AppColors.surfaceVariant,
+        label = "bg_anim"
+    )
+    val contentColor by animateColorAsState(
+        if (isSelected) AppColors.surface else AppColors.textPrimary,
+        label = "text_anim"
+    )
+    val elevation by animateDpAsState(
+        if (isSelected) 6.dp else 2.dp,
+        label = "elev_anim"
+    )
+
+    Card(
+        modifier = modifier
+            .height(80.dp)
+            .clickable { onModeChange(id) },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = elevation)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = label,
+                fontFamily = interFamily,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                style = MaterialTheme.typography.labelLarge,
+                color = contentColor
             )
         }
     }
@@ -262,11 +411,18 @@ private fun SearchModeContent(
     isSearching: Boolean,
     searchResult: com.fittrack.app.data.NutritionResult?,
     searchError: String?,
-    customFoodSuggestions: List<CustomFood>,
-    onSelectCustomFood: (CustomFood) -> Unit,
-    onAddFromSearch: (com.fittrack.app.data.NutritionResult, Float, String) -> Unit
+    customFoodSuggestions: List<FoodItem>,
+    onSelectCustomFood: (FoodItem) -> Unit,
+    onAddFromSearch: (String, com.fittrack.app.data.NutritionResult, Float, String) -> Unit
 ) {
     Column {
+        Text(
+            text = "Search Database",
+            fontFamily = interFamily,
+            fontWeight = FontWeight.SemiBold,
+            color = AppColors.textPrimary
+        )
+        Spacer(modifier = Modifier.height(4.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -398,9 +554,16 @@ private fun AiModeContent(
             onValueChange = onAiInputChange,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(120.dp),
+                .height(140.dp),
             placeholder = { Text("e.g. 2 scrambled eggs with toast and butter", fontFamily = interFamily) },
-            maxLines = 5
+            maxLines = 5,
+            shape = RoundedCornerShape(16.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = AppColors.surface,
+                unfocusedContainerColor = AppColors.surface,
+                focusedBorderColor = AppColors.primary,
+                unfocusedBorderColor = AppColors.border
+            )
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -477,8 +640,8 @@ private fun ManualModeContent(
     onCarbsChange: (String) -> Unit,
     onFatChange: (String) -> Unit,
     onAdd: () -> Unit,
-    customFoodSuggestions: List<CustomFood>,
-    onSelectCustomFood: (CustomFood) -> Unit
+    customFoodSuggestions: List<FoodItem>,
+    onSelectCustomFood: (FoodItem) -> Unit
 ) {
     Column {
         OutlinedTextField(
@@ -561,7 +724,7 @@ private fun ScanModeContent(
     scanResult: NutritionResult?,
     scanError: String?,
     onScan: (Bitmap) -> Unit,
-    onAddFromScan: (NutritionResult, Float, String) -> Unit,
+    onAddFromScan: (String, NutritionResult, Float, String) -> Unit,
     onClearScan: () -> Unit
 ) {
     val context = LocalContext.current
@@ -594,9 +757,10 @@ private fun ScanModeContent(
 
     Column {
         if (!geminiReady) {
+            // ... (keep existing warning card logic if needed, or redesign it too)
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = AppColors.surface)
+                colors = CardDefaults.cardColors(containerColor = AppColors.warning.copy(alpha = 0.1f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
@@ -617,69 +781,181 @@ private fun ScanModeContent(
         }
 
         Text(
-            text = "Scan a nutrition label",
+            text = "Scan Nutrition Label",
             fontFamily = interFamily,
-            fontWeight = FontWeight.SemiBold,
-            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.titleLarge,
             color = AppColors.textPrimary
         )
         Text(
-            text = "Take a photo or pick from gallery",
+            text = "Use your camera or upload an image to interpret nutrition facts instantly.",
             fontFamily = interFamily,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodyMedium,
             color = AppColors.textSecondary
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Button(
-                onClick = { cameraLauncher.launch(null) },
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = AppColors.primary,
-                    contentColor = AppColors.textOnPrimary
-                )
-            ) {
-                Icon(Icons.Filled.CameraAlt, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Camera", fontFamily = interFamily)
-            }
-            OutlinedButton(
-                onClick = { galleryLauncher.launch("image/*") },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("Gallery", fontFamily = interFamily)
+        val cameraPermissionLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { isGranted ->
+            if (isGranted) {
+                cameraLauncher.launch(null)
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        // Action Buttons Row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Camera Card (Take up more space)
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(200.dp)
+                    .clickable {
+                        val permission = android.Manifest.permission.CAMERA
+                        if (androidx.core.content.ContextCompat.checkSelfPermission(context, permission) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                            cameraLauncher.launch(null)
+                        } else {
+                            cameraPermissionLauncher.launch(permission)
+                        }
+                    },
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = AppColors.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(AppColors.primary.copy(alpha = 0.1f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.CameraAlt,
+                                contentDescription = null,
+                                modifier = Modifier.size(32.dp),
+                                tint = AppColors.primary
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Take Photo",
+                            fontFamily = interFamily,
+                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = AppColors.primary
+                        )
+                    }
+                }
+            }
+
+            // Gallery Card
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(200.dp)
+                    .clickable { galleryLauncher.launch("image/*") },
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = AppColors.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(AppColors.accent.copy(alpha = 0.1f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Search,
+                                contentDescription = null,
+                                modifier = Modifier.size(32.dp),
+                                tint = AppColors.accent
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Upload Image",
+                            fontFamily = interFamily,
+                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = AppColors.accent
+                        )
+                    }
+                }
+            }
+        }
 
         if (isScanning) {
-            Row(
+            Card(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
+                colors = CardDefaults.cardColors(containerColor = AppColors.primarySurface)
             ) {
-                CircularProgressIndicator(modifier = Modifier.padding(end = 12.dp))
-                Text("Reading label...", fontFamily = interFamily, color = AppColors.textSecondary)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp,
+                        color = AppColors.primary
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "Analyzing nutrition info...",
+                        fontFamily = interFamily,
+                        fontWeight = FontWeight.Medium,
+                        color = AppColors.primary
+                    )
+                }
             }
         }
 
         scanError?.let { error ->
-            Text(
-                text = error,
-                fontFamily = interFamily,
-                color = AppColors.error,
-                style = MaterialTheme.typography.bodySmall
-            )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = AppColors.error.copy(alpha = 0.1f))
+            ) {
+                Row(
+                   modifier = Modifier.padding(16.dp),
+                   verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Filled.SmartToy, contentDescription = null, tint = AppColors.error)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = error,
+                        fontFamily = interFamily,
+                        color = AppColors.error,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
         }
 
         scanResult?.let { result ->
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             NutritionCard(
                 result = result,
                 onAdd = onAddFromScan
@@ -702,6 +978,12 @@ private fun EditFoodDialog(viewModel: LogViewModel) {
     val editCarbs by viewModel.editCarbs.collectAsState()
     val editFat by viewModel.editFat.collectAsState()
     val editQuantity by viewModel.editQuantity.collectAsState()
+    val autoScale by viewModel.autoScale.collectAsState()
+
+    val textFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = AppColors.primary,
+        unfocusedBorderColor = AppColors.textPrimary
+    )
 
     AlertDialog(
         onDismissRequest = { viewModel.cancelEdit() },
@@ -713,27 +995,43 @@ private fun EditFoodDialog(viewModel: LogViewModel) {
             )
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = editName,
                     onValueChange = { viewModel.setEditName(it) },
                     label = { Text("Name", fontFamily = interFamily) },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    colors = textFieldColors
                 )
                 OutlinedTextField(
                     value = editQuantity,
                     onValueChange = { viewModel.setEditQuantity(it) },
-                    label = { Text("Quantity (e.g. 3 large, 1 lb)", fontFamily = interFamily) },
+                    label = { Text("Quantity (e.g. 1.5 servings)", fontFamily = interFamily) },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    colors = textFieldColors,
+                    trailingIcon = {
+                        Row {
+                            IconButton(onClick = { viewModel.adjustQuantity(false) }) {
+                                Icon(Icons.Filled.Remove, contentDescription = "Decrease")
+                            }
+                            IconButton(onClick = { viewModel.adjustQuantity(true) }) {
+                                Icon(Icons.Filled.Add, contentDescription = "Increase")
+                            }
+                        }
+                    }
                 )
+                
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = autoScale, onCheckedChange = { viewModel.setAutoScale(it) })
+                    Text("Auto-scale calories & macros", fontFamily = interFamily, style = MaterialTheme.typography.bodySmall)
+                }
+
                 OutlinedTextField(
                     value = editCalories,
                     onValueChange = { viewModel.setEditCalories(it) },
                     label = { Text("Calories", fontFamily = interFamily) },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    colors = textFieldColors
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
@@ -741,40 +1039,182 @@ private fun EditFoodDialog(viewModel: LogViewModel) {
                         onValueChange = { viewModel.setEditProtein(it) },
                         label = { Text("Protein (g)", fontFamily = interFamily) },
                         modifier = Modifier.weight(1f),
-                        singleLine = true
+                        colors = textFieldColors
                     )
                     OutlinedTextField(
                         value = editCarbs,
                         onValueChange = { viewModel.setEditCarbs(it) },
                         label = { Text("Carbs (g)", fontFamily = interFamily) },
                         modifier = Modifier.weight(1f),
-                        singleLine = true
+                        colors = textFieldColors
                     )
                     OutlinedTextField(
                         value = editFat,
                         onValueChange = { viewModel.setEditFat(it) },
                         label = { Text("Fat (g)", fontFamily = interFamily) },
                         modifier = Modifier.weight(1f),
-                        singleLine = true
+                        colors = textFieldColors
                     )
                 }
             }
         },
         confirmButton = {
-            Button(
-                onClick = { viewModel.saveEdit() },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = AppColors.primary,
-                    contentColor = AppColors.textOnPrimary
-                )
-            ) {
+            Button(onClick = { viewModel.saveEdit() }) {
                 Text("Save", fontFamily = interFamily)
             }
         },
         dismissButton = {
             TextButton(onClick = { viewModel.cancelEdit() }) {
-                Text("Cancel", fontFamily = interFamily, color = AppColors.textSecondary)
+                Text("Cancel", fontFamily = interFamily)
             }
         }
     )
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun AllFoodsDialog(
+    foods: List<FoodItem>,
+    onDismiss: () -> Unit,
+    onSelect: (FoodItem) -> Unit,
+    onRemove: (FoodItem) -> Unit
+) {
+    var jsonToShow by remember { mutableStateOf<String?>(null) }
+    var foodForOptions by remember { mutableStateOf<FoodItem?>(null) }
+    
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.8f),
+            shape = RoundedCornerShape(16.dp),
+            color = AppColors.surface
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Saved Foods History",
+                    fontFamily = interFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    color = AppColors.textPrimary
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                if (foods.isEmpty()) {
+                    Text(
+                        text = "No saved foods found.",
+                        fontFamily = interFamily,
+                        color = AppColors.textSecondary
+                    )
+                } else {
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        items(foods.size) { index ->
+                            val food = foods[index]
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .combinedClickable(
+                                        onClick = { onSelect(food) },
+                                        onLongClick = { foodForOptions = food }
+                                    )
+                                    .padding(vertical = 12.dp)
+                            ) {
+                                Text(
+                                    text = food.name,
+                                    fontFamily = interFamily,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 16.sp,
+                                    color = AppColors.textPrimary
+                                )
+                                Text(
+                                    text = "${food.calories} kcal • ${food.protein}g Protein • ${food.carbs}g Carbs • ${food.fat}g Fat",
+                                    fontFamily = interFamily,
+                                    fontSize = 14.sp,
+                                    color = AppColors.textSecondary
+                                )
+                            }
+                            if (index < foods.size - 1) {
+                                HorizontalDivider(color = AppColors.divider)
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AppColors.primary,
+                        contentColor = AppColors.textOnPrimary
+                    )
+                ) {
+                    Text("Close", fontFamily = interFamily)
+                }
+            }
+        }
+    }
+
+    if (jsonToShow != null) {
+        AlertDialog(
+            onDismissRequest = { jsonToShow = null },
+            confirmButton = {
+                TextButton(onClick = { jsonToShow = null }) {
+                    Text("Close", fontFamily = interFamily)
+                }
+            },
+            title = {
+                Text(
+                    text = "Raw Item Data",
+                    fontFamily = interFamily,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.Black.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
+                        .padding(12.dp)
+                ) {
+                    Text(
+                        text = jsonToShow!!,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        fontSize = 12.sp,
+                        color = AppColors.textPrimary
+                    )
+                }
+            }
+        )
+    }
+
+    if (foodForOptions != null) {
+        AlertDialog(
+            onDismissRequest = { foodForOptions = null },
+            title = { Text(foodForOptions!!.name, fontFamily = interFamily, fontWeight = FontWeight.Bold) },
+            text = { Text("What would you like to do with this item?", fontFamily = interFamily) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val prettyJson = Json { prettyPrint = true }
+                    jsonToShow = prettyJson.encodeToString(foodForOptions!!)
+                    foodForOptions = null
+                }) {
+                    Text("View Entity", fontFamily = interFamily)
+                }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        onRemove(foodForOptions!!)
+                        foodForOptions = null
+                    }) {
+                        Text("Remove Entity", fontFamily = interFamily, color = AppColors.error)
+                    }
+                    TextButton(onClick = { foodForOptions = null }) {
+                        Text("Cancel", fontFamily = interFamily)
+                    }
+                }
+            }
+        )
+    }
 }

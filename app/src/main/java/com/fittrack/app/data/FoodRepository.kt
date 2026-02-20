@@ -12,72 +12,91 @@ class FoodRepository(context: Context) {
     private val prefs = context.getSharedPreferences("fittrack_food", Context.MODE_PRIVATE)
     private val json = Json { ignoreUnknownKeys = true }
 
-    fun getFoodLog(date: String): List<FoodEntry> {
+    fun getDiary(date: String): List<DiaryItem> {
         val jsonStr = prefs.getString("food_log_$date", null) ?: return emptyList()
         return try {
-            json.decodeFromString<List<FoodEntry>>(jsonStr)
+            json.decodeFromString<List<DiaryItem>>(jsonStr)
         } catch (_: Exception) {
             emptyList()
         }
     }
 
-    fun addFoodEntry(entry: FoodEntry, date: String) {
-        val list = getFoodLog(date).toMutableList()
+    fun addDiaryItem(entry: DiaryItem, date: String) {
+        val list = getDiary(date).toMutableList()
         list.add(entry.copy(id = UUID.randomUUID().toString()))
         prefs.edit().putString("food_log_$date", json.encodeToString(list)).apply()
     }
 
-    fun removeFoodEntry(id: String, date: String) {
-        val list = getFoodLog(date).filter { it.id != id }
+    fun removeDiaryItem(id: String, date: String) {
+        val list = getDiary(date).filter { it.id != id }
         prefs.edit().putString("food_log_$date", json.encodeToString(list)).apply()
     }
 
-    fun updateFoodEntry(updated: FoodEntry, date: String) {
-        val list = getFoodLog(date).map { if (it.id == updated.id) updated else it }
+    fun updateDiaryItem(updated: DiaryItem, date: String) {
+        val list = getDiary(date).map { if (it.id == updated.id) updated else it }
         prefs.edit().putString("food_log_$date", json.encodeToString(list)).apply()
     }
 
     fun getTotalCaloriesToday(): Int =
-        getFoodLog(todayKey()).sumOf { it.calories }
+        getDiary(todayKey()).sumOf { it.calories }
 
     fun getTodayMacros(): Triple<Float, Float, Float> {
-        val entries = getFoodLog(todayKey())
+        val entries = getDiary(todayKey())
         val protein = entries.sumOf { it.protein.toDouble() }.toFloat()
         val carbs = entries.sumOf { it.carbs.toDouble() }.toFloat()
         val fat = entries.sumOf { it.fat.toDouble() }.toFloat()
         return Triple(protein, carbs, fat)
     }
 
-    fun addCustomFood(food: CustomFood) {
-        val all = getAllCustomFoods().toMutableList()
+    fun getCaloriesHistory(days: Int = 7): List<Pair<String, Int>> {
+        val today = LocalDate.now()
+        return (0 until days).map { offset ->
+            val date = today.minusDays(offset.toLong())
+            val key = date.toString()
+            val totalCal = getDiary(key).sumOf { it.calories }
+            key to totalCal
+        }
+    }
+
+    fun addOrUpdateFoodItem(food: FoodItem) {
+        val all = getAllFoodItems().toMutableList()
         val existing = all.find { it.name.equals(food.name, ignoreCase = true) }
+        val now = System.currentTimeMillis()
         val updated = if (existing != null) {
             all.filter { !it.name.equals(food.name, ignoreCase = true) } +
-                food.copy(
+                existing.copy(
                     usageCount = existing.usageCount + 1,
-                    lastUsed = System.currentTimeMillis()
+                    lastUsed = now,
+                    usageHistory = existing.usageHistory + now
                 )
         } else {
             all + food.copy(
                 usageCount = 1,
-                lastUsed = System.currentTimeMillis()
+                lastUsed = now,
+                firstAdded = now,
+                usageHistory = listOf(now)
             )
         }
         prefs.edit().putString("custom_foods", json.encodeToString(updated)).apply()
     }
 
-    fun searchCustomFoods(query: String): List<CustomFood> {
+    fun removeFoodItem(name: String) {
+        val all = getAllFoodItems().filter { !it.name.equals(name, ignoreCase = true) }
+        prefs.edit().putString("custom_foods", json.encodeToString(all)).apply()
+    }
+
+    fun searchFoodItems(query: String): List<FoodItem> {
         if (query.isBlank()) return emptyList()
         val lower = query.lowercase()
-        return getAllCustomFoods()
+        return getAllFoodItems()
             .filter { it.name.lowercase().contains(lower) }
             .sortedByDescending { it.usageCount }
     }
 
-    fun getAllCustomFoods(): List<CustomFood> {
+    fun getAllFoodItems(): List<FoodItem> {
         val jsonStr = prefs.getString("custom_foods", null) ?: return emptyList()
         return try {
-            json.decodeFromString<List<CustomFood>>(jsonStr)
+            json.decodeFromString<List<FoodItem>>(jsonStr)
         } catch (_: Exception) {
             emptyList()
         }

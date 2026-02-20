@@ -52,7 +52,25 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             _protein.value = proteinVal
             _carbs.value = carbsVal
             _fat.value = fatVal
-            _steps.value = stepsRepository.getSteps(todayKey())
+
+            try {
+                val app = getApplication<Application>()
+                val healthConnectService = com.fittrack.app.services.HealthConnectService()
+                val pedometerService = com.fittrack.app.services.PedometerService()
+
+                if (healthConnectService.isAvailable(app) && healthConnectService.initialize(app)) {
+                    _steps.value = healthConnectService.readStepsToday()
+                } else if (pedometerService.isAvailable(app)) {
+                    pedometerService.start(app)
+                    val pedSteps = pedometerService.getSteps()
+                    _steps.value = pedSteps
+                    pedometerService.stop()
+                } else {
+                    _steps.value = stepsRepository.getSteps(todayKey())
+                }
+            } catch (e: Exception) {
+                _steps.value = stepsRepository.getSteps(todayKey())
+            }
         }
     }
 

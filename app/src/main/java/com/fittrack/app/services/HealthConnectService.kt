@@ -3,6 +3,7 @@ package com.fittrack.app.services
 import android.content.Context
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
+import android.util.Log
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.request.AggregateRequest
@@ -24,28 +25,33 @@ class HealthConnectService {
     )
 
     fun isAvailable(context: Context): Boolean {
-        return try {
-            HealthConnectClient.getOrCreate(context)
-            true
-        } catch (e: Exception) {
-            false
-        }
+        val status = HealthConnectClient.getSdkStatus(context)
+        Log.d("FitTrack_HC", "isAvailable check: status=$status, SDK_AVAILABLE=${HealthConnectClient.SDK_AVAILABLE}")
+        return status == HealthConnectClient.SDK_AVAILABLE
     }
 
     suspend fun initialize(context: Context): Boolean = withContext(Dispatchers.IO) {
         try {
-            if (!isAvailable(context)) return@withContext false
-
-            val healthClient = HealthConnectClient.getOrCreate(context)
-            client = healthClient
-
-            val granted = healthClient.permissionController.getGrantedPermissions()
-            if (!granted.containsAll(requiredPermissions)) {
+            Log.d("FitTrack_HC", "initialize() called")
+            if (!isAvailable(context)) {
+                Log.d("FitTrack_HC", "initialize failed: not available")
                 return@withContext false
             }
 
-            true
+            val healthClient = HealthConnectClient.getOrCreate(context)
+            client = healthClient
+            Log.d("FitTrack_HC", "healthClient created")
+
+            val granted = healthClient.permissionController.getGrantedPermissions()
+            Log.d("FitTrack_HC", "granted permissions: $granted")
+            Log.d("FitTrack_HC", "required permissions: $requiredPermissions")
+            
+            val isAllGranted = granted.containsAll(requiredPermissions)
+            Log.d("FitTrack_HC", "isAllGranted: $isAllGranted")
+            
+            isAllGranted
         } catch (e: Exception) {
+            Log.e("FitTrack_HC", "initialize exception: ${e.message}", e)
             false
         }
     }
@@ -114,5 +120,27 @@ class HealthConnectService {
         } catch (e: Exception) {
             0
         }
+    }
+
+    fun getSettingsIntents(context: Context): List<android.content.Intent> {
+        val intents = mutableListOf<android.content.Intent>()
+        
+        // 1. Specific manager (often restricted but worth a try)
+        intents.add(android.content.Intent("android.health.connect.action.MANAGE_HEALTH_PERMISSIONS").apply {
+            putExtra(android.content.Intent.EXTRA_PACKAGE_NAME, context.packageName)
+        })
+        
+        // 2. Generic platform settings
+        intents.add(android.content.Intent("android.settings.HEALTH_CONNECT_SETTINGS"))
+        
+        // 3. Library action
+        intents.add(android.content.Intent("androidx.health.connect.action.HEALTH_CONNECT_SETTINGS"))
+        
+        // 4. Guaranteed fallback: App Info
+        intents.add(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = android.net.Uri.fromParts("package", context.packageName, null)
+        })
+        
+        return intents
     }
 }

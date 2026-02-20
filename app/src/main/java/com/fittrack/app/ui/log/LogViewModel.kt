@@ -4,10 +4,11 @@ import android.app.Application
 import android.graphics.Bitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.fittrack.app.data.CustomFood
-import com.fittrack.app.data.FoodEntry
+import com.fittrack.app.data.FoodItem
+import com.fittrack.app.data.DiaryItem
 import com.fittrack.app.data.NutritionResult
 import com.fittrack.app.data.ParsedFoodItem
+import com.fittrack.app.data.MealType
 import com.fittrack.app.services.AiFoodParserService
 import com.fittrack.app.services.GeminiNanoService
 import com.fittrack.app.services.NutritionSearchService
@@ -43,8 +44,8 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     private val _isSearching = MutableStateFlow(false)
     val isSearching: StateFlow<Boolean> = _isSearching.asStateFlow()
 
-    private val _foodLog = MutableStateFlow<List<FoodEntry>>(emptyList())
-    val foodLog: StateFlow<List<FoodEntry>> = _foodLog.asStateFlow()
+    private val _foodLog = MutableStateFlow<List<DiaryItem>>(emptyList())
+    val foodLog: StateFlow<List<DiaryItem>> = _foodLog.asStateFlow()
 
     private val _calorieGoal = MutableStateFlow(2000)
     val calorieGoal: StateFlow<Int> = _calorieGoal.asStateFlow()
@@ -79,8 +80,8 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     private val _geminiReady = MutableStateFlow(false)
     val geminiReady: StateFlow<Boolean> = _geminiReady.asStateFlow()
 
-    private val _customFoodSuggestions = MutableStateFlow<List<CustomFood>>(emptyList())
-    val customFoodSuggestions: StateFlow<List<CustomFood>> = _customFoodSuggestions.asStateFlow()
+    private val _customFoodSuggestions = MutableStateFlow<List<FoodItem>>(emptyList())
+    val customFoodSuggestions: StateFlow<List<FoodItem>> = _customFoodSuggestions.asStateFlow()
 
     private val _scanResult = MutableStateFlow<NutritionResult?>(null)
     val scanResult: StateFlow<NutritionResult?> = _scanResult.asStateFlow()
@@ -90,6 +91,24 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _scanError = MutableStateFlow<String?>(null)
     val scanError: StateFlow<String?> = _scanError.asStateFlow()
+
+    private val _showAllFoods = MutableStateFlow(false)
+    val showAllFoods: StateFlow<Boolean> = _showAllFoods.asStateFlow()
+
+    private val _allCustomFoods = MutableStateFlow<List<FoodItem>>(emptyList())
+    val allCustomFoods: StateFlow<List<FoodItem>> = _allCustomFoods.asStateFlow()
+
+    fun toggleShowAllFoods(show: Boolean) {
+        if (show) {
+            _allCustomFoods.value = foodRepository.getAllFoodItems().sortedByDescending { it.usageCount }
+        }
+        _showAllFoods.value = show
+    }
+
+    fun removeFoodFromHistory(name: String) {
+        foodRepository.removeFoodItem(name)
+        _allCustomFoods.value = foodRepository.getAllFoodItems().sortedByDescending { it.usageCount }
+    }
 
     fun setMode(mode: String) {
         _mode.value = mode
@@ -113,7 +132,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     fun loadData() {
         viewModelScope.launch {
             val today = todayKey()
-            _foodLog.value = foodRepository.getFoodLog(today)
+            _foodLog.value = foodRepository.getDiary(today)
             _calorieGoal.value = goalsRepository.getCalorieGoal()
             _caloriesEaten.value = foodRepository.getTotalCaloriesToday()
             _geminiReady.value = geminiNanoService.initIfNeeded()
@@ -139,34 +158,62 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun addFromSearch(result: NutritionResult, grams: Float, unitLabel: String = "g") {
-        val factor = (grams / 100f).coerceAtLeast(0.01f)
-        val qtyStr = if (unitLabel == "g") "${grams.toInt()}g" else "$grams $unitLabel"
-        val entry = FoodEntry(
+    fun addFromSearch(targetName: String, result: NutritionResult, grams: Float, unitLabel: String = "g") {
+        val parsedInfo = com.fittrack.app.util.parseServingSize(result.servingDescription)
+        
+        // Find if the unitLogLabel matches the original unit
+        val baseUnitLabel = parsedInfo.unit.label.lowercase()
+        val loggingUnitLabel = unitLabel.lowercase()
+        
+        val factor = if (loggingUnitLabel.contains(baseUnitLabel) || baseUnitLabel.contains(loggingUnitLabel.filter { it.isLetter() })) {
+            // If logging in base units, derive amount from grams
+            val amountLogged = grams / parsedInfo.unit.gramsPerUnit
+            amountLogged / parsedInfo.amount.coerceAtLeast(0.1f)
+        } else {
+            // Standard weight-based scaling
+            (grams / parsedInfo.baseGrams.coerceAtLeast(1f)).coerceAtLeast(0.01f)
+        }
+        val qtyStr = if (unitLabel == "g") {
+            if (grams == grams.toInt().toFloat()) "${grams.toInt()}g"
+            else "${"%.1f".format(grams)}g"
+        } else if (unitLabel.any { it.isLetter() } && unitLabel.any { it.isDigit() }) {
+            // If unitLabel already contains both digits and letters, it's likely a full string like "100g"
+            unitLabel
+        } else {
+            // Otherwise, combine them
+            if (grams == grams.toInt().toFloat()) "${grams.toInt()} $unitLabel"
+            else "${"%.1f".format(grams)} $unitLabel"
+        }
+        val now = System.currentTimeMillis()
+        val entry = DiaryItem(
             id = UUID.randomUUID().toString(),
-            name = result.name,
+            name = targetName,
             calories = (result.calories * factor).toInt(),
             protein = round1(result.protein * factor),
             carbs = round1(result.carbs * factor),
             fat = round1(result.fat * factor),
-            timestamp = System.currentTimeMillis(),
-            quantity = qtyStr
+            timestamp = now,
+            quantity = qtyStr,
+            mealType = getMealType(),
+            foodItemId = targetName // Using name as ID for now
         )
-        foodRepository.addFoodEntry(entry, todayKey())
-        foodRepository.addCustomFood(
-            CustomFood(
-                name = result.name,
+        foodRepository.addDiaryItem(entry, todayKey())
+        foodRepository.addOrUpdateFoodItem(
+            FoodItem(
+                name = targetName,
                 calories = result.calories,
                 protein = result.protein,
                 carbs = result.carbs,
                 fat = result.fat,
                 servingDescription = result.servingDescription,
                 usageCount = 1,
-                lastUsed = System.currentTimeMillis()
+                lastUsed = now
             )
         )
         loadData()
         _searchResult.value = null
+        _scanResult.value = null
+        _scanError.value = null
         _searchQuery.value = ""
     }
 
@@ -178,19 +225,22 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         val carbs = _manualCarbs.value.toFloatOrNull() ?: 0f
         val fat = _manualFat.value.toFloatOrNull() ?: 0f
         if (calories <= 0) return
-        val entry = FoodEntry(
+        val now = System.currentTimeMillis()
+        val entry = DiaryItem(
             id = UUID.randomUUID().toString(),
             name = name,
             calories = calories,
             protein = protein,
             carbs = carbs,
             fat = fat,
-            timestamp = System.currentTimeMillis(),
-            quantity = "1 serving"
+            timestamp = now,
+            quantity = "1 serving",
+            mealType = getMealType(),
+            foodItemId = name
         )
-        foodRepository.addFoodEntry(entry, todayKey())
-        foodRepository.addCustomFood(
-            CustomFood(
+        foodRepository.addDiaryItem(entry, todayKey())
+        foodRepository.addOrUpdateFoodItem(
+            FoodItem(
                 name = name,
                 calories = calories,
                 protein = protein,
@@ -198,7 +248,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
                 fat = fat,
                 servingDescription = null,
                 usageCount = 1,
-                lastUsed = System.currentTimeMillis()
+                lastUsed = now
             )
         )
         loadData()
@@ -207,6 +257,16 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         _manualProtein.value = ""
         _manualCarbs.value = ""
         _manualFat.value = ""
+    }
+
+    private fun getMealType(): MealType {
+        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        return when {
+            hour < 10 -> MealType.BREAKFAST
+            hour in 11..15 -> MealType.LUNCH
+            hour in 17..21 -> MealType.DINNER
+            else -> MealType.SNACK
+        }
     }
 
     fun parseAiInput() {
@@ -240,7 +300,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun addParsedItem(item: ParsedFoodItem) {
-        val entry = FoodEntry(
+        val entry = DiaryItem(
             id = UUID.randomUUID().toString(),
             name = item.name,
             calories = item.calories,
@@ -248,9 +308,11 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
             carbs = item.carbs,
             fat = item.fat,
             timestamp = System.currentTimeMillis(),
-            quantity = item.quantity
+            quantity = item.quantity,
+            mealType = getMealType(),
+            foodItemId = item.name
         )
-        foodRepository.addFoodEntry(entry, todayKey())
+        foodRepository.addDiaryItem(entry, todayKey())
         loadData()
     }
 
@@ -260,8 +322,8 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         _aiInput.value = ""
     }
 
-    private val _editingEntry = MutableStateFlow<FoodEntry?>(null)
-    val editingEntry: StateFlow<FoodEntry?> = _editingEntry.asStateFlow()
+    private val _editingEntry = MutableStateFlow<DiaryItem?>(null)
+    val editingEntry: StateFlow<DiaryItem?> = _editingEntry.asStateFlow()
 
     private val _editName = MutableStateFlow("")
     val editName: StateFlow<String> = _editName.asStateFlow()
@@ -281,7 +343,10 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     private val _editQuantity = MutableStateFlow("")
     val editQuantity: StateFlow<String> = _editQuantity.asStateFlow()
 
-    fun startEdit(entry: FoodEntry) {
+    private val _autoScale = MutableStateFlow(true)
+    val autoScale: StateFlow<Boolean> = _autoScale.asStateFlow()
+
+    fun startEdit(entry: DiaryItem) {
         _editingEntry.value = entry
         _editName.value = entry.name
         _editCalories.value = entry.calories.toString()
@@ -289,6 +354,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         _editCarbs.value = fmtVal(entry.carbs)
         _editFat.value = fmtVal(entry.fat)
         _editQuantity.value = entry.quantity ?: ""
+        _autoScale.value = true
     }
 
     fun setEditName(v: String) { _editName.value = v }
@@ -296,7 +362,46 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     fun setEditProtein(v: String) { _editProtein.value = v }
     fun setEditCarbs(v: String) { _editCarbs.value = v }
     fun setEditFat(v: String) { _editFat.value = v }
-    fun setEditQuantity(v: String) { _editQuantity.value = v }
+    fun setAutoScale(v: Boolean) { _autoScale.value = v }
+    
+    fun setEditQuantity(v: String) { 
+        _editQuantity.value = v 
+        if (_autoScale.value) {
+            val entry = _editingEntry.value ?: return
+            val oldQtyStr = entry.quantity ?: "1"
+            val oldQtyMatch = Regex("([0-9]*\\.?[0-9]+)").find(oldQtyStr)
+            val newQtyMatch = Regex("([0-9]*\\.?[0-9]+)").find(v)
+            
+            if (oldQtyMatch != null && newQtyMatch != null) {
+                val oldNum = oldQtyMatch.groupValues[1].toFloatOrNull() ?: 1f
+                val newNum = newQtyMatch.groupValues[1].toFloatOrNull() ?: 1f
+                if (oldNum > 0) {
+                    val ratio = newNum / oldNum
+                    _editCalories.value = (entry.calories * ratio).toInt().toString()
+                    _editProtein.value = fmtVal(entry.protein * ratio)
+                    _editCarbs.value = fmtVal(entry.carbs * ratio)
+                    _editFat.value = fmtVal(entry.fat * ratio)
+                }
+            }
+        }
+    }
+
+    fun adjustQuantity(increment: Boolean) {
+        val currentQty = _editQuantity.value
+        val match = Regex("([0-9]*\\.?[0-9]+)").find(currentQty)
+        if (match != null) {
+            val currentNum = match.groupValues[1].toFloatOrNull() ?: 0f
+            val step = if (currentNum >= 10) {
+                if (currentNum % 10 == 0f || currentNum % 5 == 0f) 5f else 1f
+            } else if (currentNum >= 1) 1f else 0.5f
+            val newNum = if (increment) currentNum + step else currentNum - step
+            if (newNum > 0) {
+                val formattedStr = if (newNum % 1f == 0f) newNum.toInt().toString() else fmtVal(newNum)
+                val newQtyStr = currentQty.replaceFirst(match.groupValues[1], formattedStr)
+                setEditQuantity(newQtyStr)
+            }
+        }
+    }
 
     fun saveEdit() {
         val entry = _editingEntry.value ?: return
@@ -308,7 +413,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
             fat = _editFat.value.toFloatOrNull() ?: entry.fat,
             quantity = _editQuantity.value.trim().ifBlank { null }
         )
-        foodRepository.updateFoodEntry(updated, todayKey())
+        foodRepository.updateDiaryItem(updated, todayKey())
         _editingEntry.value = null
         loadData()
     }
@@ -318,15 +423,15 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun removeEntry(id: String) {
-        foodRepository.removeFoodEntry(id, todayKey())
+        foodRepository.removeDiaryItem(id, todayKey())
         loadData()
     }
 
     fun updateCustomFoodSuggestions(query: String) {
-        _customFoodSuggestions.value = foodRepository.searchCustomFoods(query)
+        _customFoodSuggestions.value = foodRepository.searchFoodItems(query)
     }
 
-    fun selectCustomFoodSuggestion(food: CustomFood) {
+    fun selectCustomFoodSuggestion(food: FoodItem) {
         when (_mode.value) {
             "search" -> {
                 _searchQuery.value = food.name

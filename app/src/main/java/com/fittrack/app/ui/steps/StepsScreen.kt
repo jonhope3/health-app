@@ -4,8 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -13,8 +15,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DirectionsWalk
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
@@ -44,6 +47,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fittrack.app.theme.AppColors
 import com.fittrack.app.theme.interFamily
 import com.fittrack.app.util.fmtNum
+import com.fittrack.app.ui.common.ScreenScaffold
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -69,6 +73,7 @@ fun StepsScreen(
     val stepGoal by viewModel.stepGoal.collectAsState()
     val stepSource by viewModel.stepSource.collectAsState()
     val stepsHistory by viewModel.stepsHistory.collectAsState()
+    val caloriesHistory by viewModel.caloriesHistory.collectAsState()
     val caloriesConsumed by viewModel.caloriesConsumed.collectAsState()
     val caloriesBurned by viewModel.caloriesBurned.collectAsState()
     val showAddDialog by viewModel.showAddDialog.collectAsState()
@@ -77,27 +82,8 @@ fun StepsScreen(
     val addMode by viewModel.addMode.collectAsState()
     val goalText by viewModel.goalText.collectAsState()
 
-    val activityPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { viewModel.loadData() }
-
-    val healthConnectContract = PermissionController.createRequestPermissionResultContract()
-    val healthConnectPermissionLauncher = rememberLauncherForActivityResult(
-        healthConnectContract
-    ) { viewModel.loadData() }
-
     LaunchedEffect(Unit) {
-        val hasActivityRecognition = ContextCompat.checkSelfPermission(
-            context, Manifest.permission.ACTIVITY_RECOGNITION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (!hasActivityRecognition) {
-            activityPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
-        } else if (viewModel.healthConnectService.isAvailable(context)) {
-            healthConnectPermissionLauncher.launch(viewModel.healthConnectService.requiredPermissions)
-        } else {
-            viewModel.loadData()
-        }
+        viewModel.loadData()
     }
 
     val sourceLabel = when (stepSource) {
@@ -109,13 +95,8 @@ fun StepsScreen(
     val distance = steps * 0.000762f
     val activeMinutes = steps / 100
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp)
-    ) {
-        // 1. Header
+    ScreenScaffold {
+        // Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -125,29 +106,14 @@ fun StepsScreen(
                 text = "Steps",
                 fontFamily = interFamily,
                 fontWeight = FontWeight.Bold,
-                fontSize = 24.sp,
+                fontSize = 32.sp,
                 color = AppColors.textPrimary
-            )
-            FilterChip(
-                selected = true,
-                onClick = { },
-                label = {
-                    Text(
-                        text = sourceLabel,
-                        fontFamily = interFamily,
-                        fontSize = 12.sp
-                    )
-                },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = AppColors.steps.copy(alpha = 0.2f),
-                    selectedLabelColor = AppColors.steps
-                )
             )
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // 2. Main step card
+        // Main step card
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = AppColors.surface),
@@ -166,9 +132,9 @@ fun StepsScreen(
                     color = AppColors.textPrimary
                 )
                 Text(
-                    text = "/ ${fmtNum(stepGoal)} steps",
+                    text = "of ${fmtNum(stepGoal)} goal",
                     fontFamily = interFamily,
-                    fontSize = 16.sp,
+                    fontSize = 14.sp,
                     color = AppColors.textSecondary
                 )
                 Spacer(modifier = Modifier.height(16.dp))
@@ -177,9 +143,11 @@ fun StepsScreen(
                     progress = { progress },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(8.dp),
-                    color = AppColors.steps,
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp)),
+                    color = AppColors.primary,
                     trackColor = AppColors.border,
+                    drawStopIndicator = {}
                 )
                 Spacer(modifier = Modifier.height(8.dp))
             }
@@ -189,26 +157,28 @@ fun StepsScreen(
 
         // 3. Stats row
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             StatCard(
-                modifier = Modifier.weight(1f),
-                icon = Icons.Default.DirectionsWalk,
-                value = String.format("%.2f", distance),
-                label = "Distance (km)"
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+                icon = Icons.AutoMirrored.Filled.DirectionsWalk,
+                value = String.format(java.util.Locale.US, "%.1f", distance),
+                label = "Miles"
             )
             StatCard(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
                 icon = Icons.Default.LocalFireDepartment,
                 value = fmtNum(caloriesBurned),
-                label = "Calories Burned"
+                label = "Cal Burned"
             )
             StatCard(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
                 icon = Icons.Default.Timer,
                 value = activeMinutes.toString(),
-                label = "Active Minutes"
+                label = "Active Min"
             )
         }
 
@@ -293,25 +263,34 @@ fun StepsScreen(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+                // Calorie balance bar — consumed (orange) vs burned (blue)
                 val total = (caloriesConsumed + caloriesBurned).coerceAtLeast(1)
-                val consumedRatio = (caloriesConsumed.toFloat() / total).coerceIn(0.01f, 0.99f)
+                val consumedRatio = (caloriesConsumed.toFloat() / total).coerceIn(0.05f, 0.95f)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(8.dp),
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp)),
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     Box(
                         modifier = Modifier
                             .weight(consumedRatio)
-                            .background(AppColors.calorie, RoundedCornerShape(4.dp))
+                            .fillMaxHeight()
+                            .background(AppColors.calorie)
                     )
                     Box(
                         modifier = Modifier
                             .weight(1f - consumedRatio)
-                            .background(AppColors.success, RoundedCornerShape(4.dp))
+                            .fillMaxHeight()
+                            .background(AppColors.success)
                     )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("● Consumed", fontFamily = interFamily, fontSize = 10.sp, color = AppColors.calorie)
+                    Text("● Burned", fontFamily = interFamily, fontSize = 10.sp, color = AppColors.success)
                 }
             }
         }
@@ -339,13 +318,56 @@ fun StepsScreen(
                 }
                 val stepValues = reversedHistory.map { it.second }
                 if (stepValues.isNotEmpty()) {
-                    StepsHistoryChart(
-                        stepValues = stepValues,
-                        dayNames = dayNames
+                    HistoryChart(
+                        values = stepValues,
+                        dayNames = dayNames,
+                        barColor = AppColors.steps,
+                        formatValue = { if (it >= 1000) "${it / 1000}k" else it.toString() }
                     )
                 } else {
                     Text(
                         text = "No step data yet",
+                        fontFamily = interFamily,
+                        fontSize = 14.sp,
+                        color = AppColors.textSecondary,
+                        modifier = Modifier.padding(32.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 7. Calorie History card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = AppColors.surface),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Calorie History",
+                    fontFamily = interFamily,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp,
+                    color = AppColors.textPrimary
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                val revCalHistory = caloriesHistory.reversed()
+                val dayNames = revCalHistory.map { (date, _) ->
+                    LocalDate.parse(date).dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+                }
+                val calorieValues = revCalHistory.map { it.second }
+                if (calorieValues.isNotEmpty() && calorieValues.any { it > 0 }) {
+                    HistoryChart(
+                        values = calorieValues,
+                        dayNames = dayNames,
+                        barColor = AppColors.calorie,
+                        formatValue = { it.toString() }
+                    )
+                } else {
+                    Text(
+                        text = "No calorie data yet",
                         fontFamily = interFamily,
                         fontSize = 14.sp,
                         color = AppColors.textSecondary,
@@ -432,91 +454,132 @@ private fun StatCard(
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp, horizontal = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = AppColors.steps,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(22.dp)
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = value,
                 fontFamily = interFamily,
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 16.sp,
-                color = AppColors.textPrimary
+                fontSize = 15.sp,
+                color = AppColors.textPrimary,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
             Text(
                 text = label,
                 fontFamily = interFamily,
                 fontSize = 10.sp,
-                color = AppColors.textSecondary
+                color = AppColors.textSecondary,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
     }
 }
 
 @Composable
-private fun StepsHistoryChart(
-    stepValues: List<Int>,
-    dayNames: List<String>
+private fun HistoryChart(
+    values: List<Int>,
+    dayNames: List<String>,
+    barColor: androidx.compose.ui.graphics.Color,
+    formatValue: (Int) -> String
 ) {
-    val barColor = AppColors.steps
-    val textColor = AppColors.textSecondary
-    val maxSteps = (stepValues.maxOrNull() ?: 1).coerceAtLeast(1)
+    val textSecondaryArgb = android.graphics.Color.argb(
+        (AppColors.textSecondary.alpha * 255).toInt(),
+        (AppColors.textSecondary.red * 255).toInt(),
+        (AppColors.textSecondary.green * 255).toInt(),
+        (AppColors.textSecondary.blue * 255).toInt()
+    )
+    val lineArgb = android.graphics.Color.argb(
+        (barColor.alpha * 255).toInt(),
+        (barColor.red * 255).toInt(),
+        (barColor.green * 255).toInt(),
+        (barColor.blue * 255).toInt()
+    )
+    val maxValue = (values.maxOrNull() ?: 1).coerceAtLeast(1)
 
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
-            .height(180.dp)
+            .height(140.dp)
     ) {
-        val barCount = stepValues.size
-        if (barCount == 0) return@Canvas
+        val count = values.size
+        if (count == 0) return@Canvas
 
         val bottomPadding = 28f
-        val topPadding = 20f
+        val topPadding = 16f
         val chartHeight = size.height - bottomPadding - topPadding
-        val barWidth = (size.width / barCount) * 0.6f
-        val gap = (size.width / barCount) * 0.4f
+        val slotWidth = size.width / count
 
-        stepValues.forEachIndexed { index, steps ->
-            val barHeight = (steps.toFloat() / maxSteps) * chartHeight
-            val x = index * (barWidth + gap) + gap / 2
-            val y = topPadding + chartHeight - barHeight
+        // Compute point positions
+        val points = values.mapIndexed { i, v ->
+            val x = slotWidth * i + slotWidth / 2f
+            val y = topPadding + chartHeight - (v.toFloat() / maxValue) * chartHeight
+            x to y
+        }
 
-            drawRoundRect(
-                color = barColor,
-                topLeft = Offset(x, y),
-                size = Size(barWidth, barHeight),
-                cornerRadius = CornerRadius(4f, 4f)
-            )
+        val linePaint = android.graphics.Paint().apply {
+            color = lineArgb
+            strokeWidth = 8f
+            isAntiAlias = true
+            style = android.graphics.Paint.Style.STROKE
+            strokeJoin = android.graphics.Paint.Join.ROUND
+            strokeCap = android.graphics.Paint.Cap.ROUND
+        }
+        val dotPaint = android.graphics.Paint().apply {
+            color = lineArgb
+            isAntiAlias = true
+            style = android.graphics.Paint.Style.FILL
+        }
+        val labelPaint = android.graphics.Paint().apply {
+            color = textSecondaryArgb
+            textAlign = android.graphics.Paint.Align.CENTER
+            textSize = 32f
+            isAntiAlias = true
+            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+        }
+        val valuePaint = android.graphics.Paint().apply {
+            color = textSecondaryArgb
+            textAlign = android.graphics.Paint.Align.CENTER
+            textSize = 24f
+            isAntiAlias = true
+        }
 
-            val label = dayNames.getOrElse(index) { "" }
-            drawContext.canvas.nativeCanvas.drawText(
-                label,
-                x + barWidth / 2,
-                size.height - 4f,
+        // Draw connecting lines
+        for (i in 0 until points.size - 1) {
+            val (x1, y1) = points[i]
+            val (x2, y2) = points[i + 1]
+            drawContext.canvas.nativeCanvas.drawLine(x1, y1, x2, y2, linePaint)
+        }
+
+        // Draw dots and labels
+        points.forEachIndexed { i, (x, y) ->
+            // Dot
+            drawContext.canvas.nativeCanvas.drawCircle(x, y, 8f, dotPaint)
+            // White center
+            drawContext.canvas.nativeCanvas.drawCircle(
+                x, y, 4f,
                 android.graphics.Paint().apply {
-                    color = textColor.hashCode()
-                    textAlign = android.graphics.Paint.Align.CENTER
-                    textSize = 24f
+                    color = android.graphics.Color.WHITE
+                    isAntiAlias = true
+                    style = android.graphics.Paint.Style.FILL
                 }
             )
-
-            if (steps > 0) {
-                drawContext.canvas.nativeCanvas.drawText(
-                    if (steps >= 1000) "${steps / 1000}k" else steps.toString(),
-                    x + barWidth / 2,
-                    y - 4f,
-                    android.graphics.Paint().apply {
-                        color = textColor.hashCode()
-                        textAlign = android.graphics.Paint.Align.CENTER
-                        textSize = 20f
-                    }
-                )
+            // Day label
+            val label = dayNames.getOrElse(i) { "" }
+            drawContext.canvas.nativeCanvas.drawText(label, x, size.height - 4f, labelPaint)
+            // Value above dot (only if > 0)
+            if (values[i] > 0) {
+                drawContext.canvas.nativeCanvas.drawText(formatValue(values[i]), x, y - 10f, valuePaint)
             }
         }
     }

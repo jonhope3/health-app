@@ -73,7 +73,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
     // Health Connect
-    implementation("androidx.health.connect:connect-client:1.1.0-alpha10")
+    implementation("androidx.health.connect:connect-client:1.1.0-alpha11")
 
     // ML Kit GenAI Prompt (Gemini Nano)
     implementation("com.google.mlkit:genai-prompt:1.0.0-beta1")

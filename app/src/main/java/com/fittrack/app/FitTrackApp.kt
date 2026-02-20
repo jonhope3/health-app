@@ -1,11 +1,14 @@
 package com.fittrack.app
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.outlined.DirectionsWalk
+import androidx.compose.material.icons.automirrored.outlined.DirectionsWalk
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,7 +33,7 @@ import com.fittrack.app.ui.steps.StepsScreen
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
     data object Home : Screen("home", "Home", Icons.Filled.Home)
     data object Log : Screen("log", "Log Food", Icons.Filled.Restaurant)
-    data object Steps : Screen("steps", "Steps", Icons.Outlined.DirectionsWalk)
+    data object Steps : Screen("steps", "Steps", Icons.AutoMirrored.Outlined.DirectionsWalk)
     data object Settings : Screen("settings", "Settings", Icons.Filled.Settings)
 }
 
@@ -43,6 +46,7 @@ fun FitTrackApp() {
     val currentDestination = navBackStackEntry?.destination
 
     Scaffold(
+        containerColor = AppColors.background,
         bottomBar = {
             NavigationBar(
                 containerColor = AppColors.surface,
@@ -73,7 +77,7 @@ fun FitTrackApp() {
                             selectedTextColor = AppColors.primary,
                             unselectedIconColor = AppColors.textSecondary,
                             unselectedTextColor = AppColors.textSecondary,
-                            indicatorColor = AppColors.primarySurface
+                            indicatorColor = AppColors.primaryLight
                         )
                     )
                 }
@@ -83,7 +87,11 @@ fun FitTrackApp() {
         NavHost(
             navController = navController,
             startDestination = Screen.Home.route,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(innerPadding),
+            enterTransition = { fadeIn(animationSpec = tween(200)) },
+            exitTransition = { fadeOut(animationSpec = tween(200)) },
+            popEnterTransition = { fadeIn(animationSpec = tween(200)) },
+            popExitTransition = { fadeOut(animationSpec = tween(200)) }
         ) {
             composable(Screen.Home.route) { HomeScreen(navController) }
             composable(Screen.Log.route) { LogScreen() }

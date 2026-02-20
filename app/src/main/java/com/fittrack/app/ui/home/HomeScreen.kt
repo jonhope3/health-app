@@ -23,6 +23,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -32,6 +34,7 @@ import com.fittrack.app.theme.interFamily
 import com.fittrack.app.util.fmtNum
 import com.fittrack.app.util.getGreeting
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import com.fittrack.app.ui.common.ScreenScaffold
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -65,51 +68,56 @@ fun HomeScreen(
         DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault())
     )
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
-            .padding(top = 24.dp, start = 16.dp, end = 16.dp, bottom = 24.dp)
-    ) {
-        // Header
+    ScreenScaffold {
         Text(
             text = getGreeting(),
             fontFamily = interFamily,
             fontWeight = FontWeight.Bold,
-            fontSize = 24.sp,
+            fontSize = 32.sp,
             color = AppColors.textPrimary
         )
         Text(
             text = dateFormatted,
             fontFamily = interFamily,
             fontWeight = FontWeight.Normal,
-            fontSize = 14.sp,
+            fontSize = 16.sp,
             color = AppColors.textSecondary
         )
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Progress rings
+        val caloriesProgress = (caloriesEaten.toFloat() / calorieGoal.coerceAtLeast(1)).coerceIn(0f, 1f)
+        val stepsProgress = (steps.toFloat() / stepGoal.coerceAtLeast(1)).coerceIn(0f, 1f)
+
+        // Progress rings — color picked from green/yellow/red based on percentage
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             ProgressRing(
-                progress = (caloriesEaten.toFloat() / calorieGoal).coerceAtMost(1f),
+                progress = caloriesProgress,
                 currentValue = caloriesEaten,
                 goalValue = calorieGoal,
-                label = "Calories",
-                gradientStart = AppColors.calorie,
-                gradientEnd = AppColors.error,
+                label = "Calories Consumed",
+                ringColor = progressColor(caloriesProgress, lowGood = true),
                 onClick = { navigateTo("log") }
             )
+            val context = androidx.compose.ui.platform.LocalContext.current
             ProgressRing(
-                progress = (steps.toFloat() / stepGoal).coerceAtMost(1f),
+                progress = stepsProgress,
                 currentValue = steps,
                 goalValue = stepGoal,
                 label = "Steps",
-                gradientStart = AppColors.steps,
-                gradientEnd = AppColors.accent,
-                onClick = { navigateTo("steps") }
+                ringColor = progressColor(stepsProgress, lowGood = false),
+                onClick = { navigateTo("steps") },
+                onLongClick = {
+                    val intents = com.fittrack.app.services.HealthConnectService().getSettingsIntents(context)
+                    for (intent in intents) {
+                        try {
+                            context.startActivity(intent)
+                            break
+                        } catch (_: Exception) {}
+                    }
+                }
             )
         }
         Spacer(modifier = Modifier.height(24.dp))
@@ -143,7 +151,7 @@ fun HomeScreen(
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "Eaten",
+                        text = "Calories Consumed",
                         fontFamily = interFamily,
                         fontSize = 12.sp,
                         color = AppColors.textSecondary
@@ -186,7 +194,7 @@ fun HomeScreen(
                     text = "Macros",
                     fontFamily = interFamily,
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp,
+                    fontSize = 18.sp,
                     color = AppColors.textPrimary
                 )
                 Spacer(modifier = Modifier.height(12.dp))
@@ -252,24 +260,27 @@ private fun MacroRow(
             Text(
                 text = name,
                 fontFamily = interFamily,
-                fontSize = 12.sp,
+                fontSize = 13.sp,
                 color = AppColors.textSecondary
             )
             Text(
-                text = "${grams.toInt()}g (${(progress * 100).toInt()}%)",
+                text = "${grams.toInt()}g",
                 fontFamily = interFamily,
-                fontSize = 12.sp,
-                color = AppColors.textSecondary
+                fontWeight = FontWeight.Medium,
+                fontSize = 13.sp,
+                color = AppColors.textPrimary
             )
         }
         Spacer(modifier = Modifier.height(4.dp))
         LinearProgressIndicator(
-            progress = { (grams / 150f).coerceAtMost(1f) },
+            progress = { progress.coerceIn(0f, 1f) },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(8.dp),
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp)),
             color = color,
-            trackColor = AppColors.border
+            trackColor = AppColors.border,
+            drawStopIndicator = {}
         )
     }
 }

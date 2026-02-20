@@ -2,14 +2,28 @@ package com.fittrack.app.ui.settings
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.fittrack.app.data.GoalsRepository
+import com.fittrack.app.services.HealthConnectService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import android.content.Context
+
+data class DbEntry(
+    val table: String,
+    val key: String,
+    val value: String
+)
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val goalsRepository = GoalsRepository(application)
+    private val healthConnectService = HealthConnectService()
+
+    private val _healthConnectGranted = MutableStateFlow(false)
+    val healthConnectGranted: StateFlow<Boolean> = _healthConnectGranted.asStateFlow()
 
     private val _calorieGoal = MutableStateFlow("")
     val calorieGoal: StateFlow<String> = _calorieGoal.asStateFlow()
@@ -26,7 +40,44 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _heightIn = MutableStateFlow("")
     val heightIn: StateFlow<String> = _heightIn.asStateFlow()
 
-    init { loadData() }
+    init {
+        ensureDefaults()
+        loadData()
+        checkHealthConnect()
+    }
+
+    private fun ensureDefaults() {
+        val app = getApplication<Application>()
+        // If goals are empty, populate with system defaults so they are "visible" in DB
+        val p = app.getSharedPreferences("fittrack_goals", Context.MODE_PRIVATE)
+        if (p.all.isEmpty()) {
+            p.edit()
+                .putInt("calorie_goal", 2000)
+                .putInt("step_goal", 10000)
+                .putFloat("weight_lbs", 160f)
+                .putFloat("height_in", 68f)
+                .apply()
+        }
+        
+        // Initialize food containers if missing
+        val f = app.getSharedPreferences("fittrack_food", Context.MODE_PRIVATE)
+        if (f.getString("custom_foods", null) == null) {
+            f.edit().putString("custom_foods", "[]").apply()
+        }
+    }
+
+    private fun checkHealthConnect() {
+        viewModelScope.launch {
+            val app = getApplication<Application>()
+            if (healthConnectService.isAvailable(app)) {
+                _healthConnectGranted.value = healthConnectService.initialize(app)
+            }
+        }
+    }
+
+    fun onHealthConnectResult(granted: Set<String>) {
+        _healthConnectGranted.value = granted.isNotEmpty()
+    }
 
     fun loadData() {
         _calorieGoal.value = goalsRepository.getCalorieGoal().toString()
@@ -56,5 +107,31 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private fun fmtNum(v: Float): String {
         return if (v == v.toLong().toFloat()) v.toLong().toString()
         else "%.1f".format(v)
+    }
+
+    fun nukeDb() {
+        val app = getApplication<Application>()
+        app.getSharedPreferences("fittrack_food", Context.MODE_PRIVATE).edit().clear().apply()
+        app.getSharedPreferences("fittrack_goals", Context.MODE_PRIVATE).edit().clear().apply()
+        app.getSharedPreferences("fittrack_steps", Context.MODE_PRIVATE).edit().clear().apply()
+        ensureDefaults()
+        loadData()
+    }
+
+    fun getDbOverview(): List<DbEntry> {
+        val app = getApplication<Application>()
+        val list = mutableListOf<DbEntry>()
+        listOf("fittrack_food", "fittrack_goals", "fittrack_steps").forEach { prefName ->
+            val p = app.getSharedPreferences(prefName, Context.MODE_PRIVATE)
+            val allEntries = p.all
+            if (allEntries.isEmpty()) {
+                list.add(DbEntry(prefName, "(empty)", "No data records found in this table"))
+            } else {
+                allEntries.forEach { (key, value) ->
+                    list.add(DbEntry(prefName, key, value.toString()))
+                }
+            }
+        }
+        return list.sortedBy { it.table }
     }
 }

@@ -14,32 +14,42 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.fittrack.app.data.FoodEntry
+import com.fittrack.app.data.DiaryItem
 import com.fittrack.app.theme.AppColors
 import com.fittrack.app.theme.interFamily
 import com.fittrack.app.util.fmtNum
 import com.fittrack.app.util.formatTime
 
 @Composable
-fun FoodItemCard(
-    entry: FoodEntry,
+fun DiaryItemCard(
+    entry: DiaryItem,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
+    var expanded by remember { mutableStateOf(false) }
+
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { onEdit() },
+        modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = AppColors.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         shape = RoundedCornerShape(8.dp)
@@ -68,15 +78,21 @@ fun FoodItemCard(
                         fontFamily = interFamily,
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.bodyLarge,
-                        color = AppColors.textPrimary
+                        color = AppColors.textPrimary,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
                     )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "${fmtNum(entry.calories)} kcal",
                         fontFamily = interFamily,
+                        fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = AppColors.textPrimary
+                        color = AppColors.primary
                     )
                 }
+                Spacer(modifier = Modifier.height(4.dp))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -87,7 +103,7 @@ fun FoodItemCard(
                             fontFamily = interFamily,
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Medium,
-                            color = AppColors.primary
+                            color = AppColors.textPrimary
                         )
                         Text(
                             text = "·",
@@ -104,23 +120,50 @@ fun FoodItemCard(
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    MacroPill("P", "${fmt(entry.protein)}g", AppColors.protein)
-                    MacroPill("C", "${fmt(entry.carbs)}g", AppColors.carbs)
-                    MacroPill("F", "${fmt(entry.fat)}g", AppColors.fat)
+                    MacroPill("Protein", "${fmt(entry.protein)}g", AppColors.protein)
+                    MacroPill("Carbs", "${fmt(entry.carbs)}g", AppColors.carbs)
+                    MacroPill("Fat", "${fmt(entry.fat)}g", AppColors.fat)
                 }
             }
             Spacer(modifier = Modifier.width(8.dp))
-            IconButton(
-                onClick = onDelete,
-                modifier = Modifier.size(40.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Delete,
-                    contentDescription = "Delete",
-                    tint = AppColors.error
-                )
+            Box {
+                IconButton(
+                    onClick = { expanded = true },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.MoreVert,
+                        contentDescription = "Options",
+                        tint = AppColors.textSecondary
+                    )
+                }
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Edit Entry", fontFamily = interFamily) },
+                        onClick = {
+                            expanded = false
+                            onEdit()
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Filled.Edit, contentDescription = null)
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Delete", fontFamily = interFamily, color = AppColors.error) },
+                        onClick = {
+                            expanded = false
+                            onDelete()
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Filled.Delete, contentDescription = null, tint = AppColors.error)
+                        }
+                    )
+                }
             }
         }
     }

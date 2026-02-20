@@ -1,4 +1,4 @@
-.PHONY: setup start teardown build test clean emulator install run log help
+.PHONY: setup start teardown build test clean emulator install run log help phone
 
 # Configuration
 GRADLE := ./gradlew
@@ -16,14 +16,15 @@ help:
 	@echo "-------------------------"
 	@echo "make setup    - Verify development environment"
 	@echo "make start    - 🚀 One-Step Dev: Setup, Build, & Launch Emulator/App"
+	@echo "make phone    - 📱 Run on Physical Phone (Must be connected via USB/ADB)"
 	@echo "make teardown - 🛑 Stop Emulator & Clean Build"
 	@echo "make update   - 🔄 Fast Update: Reinstall & Launch App (Keep Emulator Running)"
 	@echo "make build    - Build the debug APK"
 	@echo "make test     - Run unit tests"
 	@echo "make clean    - Clean build artifacts"
 	@echo "make emulator - Launch the Pixel 10 Pro Emulator"
-	@echo "make install  - Install the app to the running emulator"
-	@echo "make run      - Install and launch the app on the emulator"
+	@echo "make install  - Install the app to the running emulator/device"
+	@echo "make run      - Install and launch the app on the emulator/device"
 	@echo "make log      - View app logs (logcat)"
 
 # Verify environment
@@ -35,6 +36,11 @@ setup:
 start:
 	@chmod +x scripts/start_dev.sh
 	@./scripts/start_dev.sh
+
+# Run on physical phone
+phone: install
+	@echo "Launching app on physical device..."
+	@$(ADB) -d shell monkey -p $(PACKAGE_NAME) -c android.intent.category.LAUNCHER 1
 
 # Stop Emulator & Clean
 teardown:
@@ -61,7 +67,7 @@ emulator:
 	@echo "Starting Emulator: $(AVD_NAME)..."
 	@$(EMULATOR) -avd $(AVD_NAME) &
 
-# Install the app to the running emulator
+# Install the app to the running emulator/device
 install:
 	$(GRADLE) installDebug
 

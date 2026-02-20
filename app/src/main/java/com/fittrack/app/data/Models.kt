@@ -3,7 +3,12 @@ package com.fittrack.app.data
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class FoodEntry(
+enum class MealType {
+    BREAKFAST, LUNCH, DINNER, SNACK, OTHER
+}
+
+@Serializable
+data class DiaryItem(
     val id: String,
     val name: String,
     val calories: Int,
@@ -11,7 +16,9 @@ data class FoodEntry(
     val carbs: Float,
     val fat: Float,
     val timestamp: Long,
-    val quantity: String? = null
+    val quantity: String? = null,
+    val mealType: MealType = MealType.OTHER,
+    val foodItemId: String? = null
 )
 
 @Serializable
@@ -25,7 +32,7 @@ data class NutritionResult(
 )
 
 @Serializable
-data class CustomFood(
+data class FoodItem(
     val name: String,
     val calories: Int,
     val protein: Float,
@@ -33,7 +40,9 @@ data class CustomFood(
     val fat: Float,
     val servingDescription: String? = null,
     val usageCount: Int,
-    val lastUsed: Long
+    val lastUsed: Long,
+    val firstAdded: Long = lastUsed,
+    val usageHistory: List<Long> = emptyList()
 )
 
 @Serializable
