@@ -17,7 +17,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class HomeViewModel(application: Application) : AndroidViewModel(application) {
+class HomeViewModel
+@JvmOverloads
+constructor(
+        application: Application,
+        private val random: kotlin.random.Random = kotlin.random.Random.Default
+) : AndroidViewModel(application) {
 
     private val goalsRepository = GoalsRepository(application)
     private val foodRepository = FoodRepository(application)
@@ -25,6 +30,16 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val healthConnectService = HealthConnectService()
     private val pedometerService = PedometerService()
     private val geminiNanoService = GeminiNanoService()
+
+    private val coachTipUseCase =
+            CoachTipUseCase(
+                    foodRepository = foodRepository,
+                    stepsRepository = stepsRepository,
+                    geminiNanoService = geminiNanoService,
+                    random = random
+            )
+
+    private var coachTipJob: kotlinx.coroutines.Job? = null
 
     private val _calorieGoal = MutableStateFlow(2000)
     val calorieGoal: StateFlow<Int> = _calorieGoal.asStateFlow()
@@ -92,6 +107,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             _fatGoalG.value = goalsRepository.getFatGoalG()
             _sugarGoalG.value = goalsRepository.getSugarGoalG()
 
+            val weightLbs = goalsRepository.getWeightLbs().toDouble()
+
             val app = getApplication<Application>()
             val today = todayKey()
 
@@ -106,12 +123,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
                     // Always estimate from steps — HC's ActiveCaloriesBurnedRecord
                     // includes resting/basal metabolism, not just activity.
-                    _caloriesBurned.value = estimateCaloriesBurned(stepsToday)
+                    _caloriesBurned.value = estimateCaloriesBurned(stepsToday, weightLbs)
 
                     generateCoachTip()
                     return@launch
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.w("HomeViewModel", "HealthConnect failed", e)
+            }
 
             try {
                 if (pedometerService.isAvailable(app)) {
@@ -120,145 +139,46 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     _steps.value = pedSteps
                     stepsRepository.saveSteps(pedSteps, today)
                     pedometerService.stop()
-                    _caloriesBurned.value = estimateCaloriesBurned(pedSteps)
+                    _caloriesBurned.value = estimateCaloriesBurned(pedSteps, weightLbs)
                     generateCoachTip()
                     return@launch
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.w("HomeViewModel", "Pedometer failed", e)
+            }
 
             val savedSteps = stepsRepository.getSteps(today)
             _steps.value = savedSteps
-            _caloriesBurned.value = estimateCaloriesBurned(savedSteps)
+            _caloriesBurned.value = estimateCaloriesBurned(savedSteps, weightLbs)
             generateCoachTip()
         }
     }
 
     private fun generateCoachTip() {
-        val cal = _caloriesEaten.value
-        val calGoal = _calorieGoal.value
-        val p = _protein.value
-        val c = _carbs.value
-        val f = _fat.value
-        val s = _steps.value
-        val sGoal = _stepGoal.value
-        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-        val name = _nickname.value.ifBlank { "friend" }
+        coachTipJob?.cancel()
 
-        val timeOfDay =
-                when {
-                    hour < 12 -> "morning"
-                    hour < 17 -> "afternoon"
-                    else -> "evening"
+        val data =
+                CoachPromptData(
+                        caloriesEaten = _caloriesEaten.value,
+                        calorieGoal = _calorieGoal.value,
+                        protein = _protein.value,
+                        carbs = _carbs.value,
+                        fat = _fat.value,
+                        sugar = _sugar.value,
+                        sugarGoal = _sugarGoalG.value,
+                        steps = _steps.value,
+                        stepGoal = _stepGoal.value,
+                        nickname = _nickname.value
+                )
+
+        coachTipJob =
+                viewModelScope.launch {
+                    val tip = coachTipUseCase.getCoachTip(data)
+                    _coachTip.update { tip }
                 }
-
-        val prompt = buildString {
-            append("You are a kind, supportive fitness coach and teammate. ")
-            append("The user's name is $name. It is currently $timeOfDay. ")
-            append("Here is their data for today:\n")
-            append("- Calories eaten: $cal of $calGoal cal goal\n")
-            append("- Protein: ${p.toInt()}g, Carbs: ${c.toInt()}g, Fat: ${f.toInt()}g\n")
-            append("- Steps: $s of $sGoal step goal\n\n")
-
-            if (cal == 0 && p == 0f && c == 0f && f == 0f) {
-                append("They have NOT logged any food yet today. ")
-            }
-            if (s == 0) {
-                append("They have NOT logged any steps yet today. ")
-            }
-
-            append("\nGive a short, encouraging coach tip (2-3 sentences max). ")
-            append("Be specific to their actual numbers. ")
-            append(
-                    "If they haven't logged food or steps, gently suggest they consider adding them. "
-            )
-            append("If they're over their calorie goal, be supportive not judgmental. ")
-            append(
-                    "If macros are imbalanced (e.g. very high fat, very low protein), give a gentle suggestion. "
-            )
-            append(
-                    "Sound like a friendly teammate, not a robot. Do NOT use emojis. Use only one space after periods. "
-            )
-            append(
-                    "Bold the 1-3 most important short phrases (1-8 words each) by wrapping them in **double asterisks**."
-            )
-        }
-
-        viewModelScope.launch {
-            try {
-                if (geminiNanoService.initIfNeeded()) {
-                    val response = geminiNanoService.generateContent(prompt)
-                    val cleaned =
-                            response.trim()
-                                    .removePrefix("\"")
-                                    .removeSuffix("\"")
-                                    .replace(Regex("""\*{3,}"""), "**")
-                                    .replace(Regex(""" {2,}"""), " ")
-                                    .trim()
-                    if (cleaned.length >= 20) {
-                        _coachTip.update { cleaned }
-                        Log.d("FitTrack_Coach", "Gemini Nano tip: $cleaned")
-                        return@launch
-                    }
-                }
-            } catch (e: Exception) {
-                Log.w("FitTrack_Coach", "Gemini Nano failed, using fallback: ${e.message}")
-            }
-
-            _coachTip.update { fallbackCoachTip(cal, calGoal, p, c, f, s, sGoal, hour, name) }
-        }
     }
 
-    private fun fallbackCoachTip(
-            cal: Int,
-            calGoal: Int,
-            p: Float,
-            c: Float,
-            f: Float,
-            s: Int,
-            sGoal: Int,
-            hour: Int,
-            name: String
-    ): String {
-        val noFood = cal == 0 && p == 0f && c == 0f && f == 0f
-        val noSteps = s == 0
-
-        return when {
-            noFood && noSteps -> {
-                if (hour < 12)
-                        "Good morning, $name! A fresh day ahead. Log your breakfast and get moving — you've got this!"
-                else
-                        "Hey $name, looks like today's a blank slate. No food or steps logged yet — consider adding them so I can help you stay on track!"
-            }
-            noFood ->
-                    "You've got $s steps in already — nice work, $name! No food logged yet though. Consider adding your meals so we can track your nutrition together."
-            noSteps ->
-                    "Food's logged but no steps yet, $name. Even a short walk counts! Try to get moving when you can — your body will thank you."
-            cal > calGoal * 1.15 -> {
-                val over = cal - calGoal
-                "You're about $over cal over your goal, $name. No stress — it happens! Maybe go lighter on your next meal or take a walk to balance things out."
-            }
-            cal > calGoal * 0.9 && cal <= calGoal ->
-                    "Almost at your calorie goal, $name! You're right on track. Be mindful with snacks from here and you'll finish the day perfectly."
-            hour >= 18 && cal < calGoal * 0.5 ->
-                    "It's getting late and you're under half your calorie goal, $name. Make sure you're eating enough — your body needs fuel to recover!"
-            s >= sGoal ->
-                    "Step goal crushed! Amazing work, $name. Keep that energy going — consistency is what makes the difference."
-            hour >= 15 && s < sGoal * 0.3 ->
-                    "Afternoon check-in, $name: you're under 30% of your step goal. An evening walk could get you back on pace — you've still got time!"
-            f > 0 && p > 0 && f * 9 > (p * 4 + c * 4 + f * 9) * 0.45 ->
-                    "Your fat intake is high today relative to protein and carbs, $name. Try adding some lean protein or veggies to your next meal to balance things out."
-            p > 0 && c > 0 && p * 4 < (p * 4 + c * 4 + f * 9) * 0.15 ->
-                    "Protein's low today, $name. Consider adding something like chicken, eggs, or Greek yogurt — your muscles will appreciate it!"
-            s.toFloat() / sGoal.coerceAtLeast(1) > 0.7f &&
-                    cal.toFloat() / calGoal.coerceAtLeast(1) < 0.8f ->
-                    "Great step count so far, $name! Your calories are well managed too. You're having an awesome day — keep it up!"
-            else ->
-                    "Looking good, $name! You're making progress on your goals today. Keep logging and moving — every bit counts."
-        }
-    }
-
-    private fun estimateCaloriesBurned(steps: Int): Int {
-        val weightLbs = goalsRepository.getWeightLbs()
+    private fun estimateCaloriesBurned(steps: Int, weightLbs: Double): Int {
         val calPerStep = 0.04 * (weightLbs / 150.0)
         return (steps * calPerStep).toInt()
     }
