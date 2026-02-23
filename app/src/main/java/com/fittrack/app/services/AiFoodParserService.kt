@@ -11,139 +11,256 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 class AiFoodParserService(
-    private val geminiNanoService: GeminiNanoService = GeminiNanoService()
+        private val mediaPipeLLMService: MediaPipeLLMService,
+        private val geminiNanoService: GeminiNanoService
 ) {
 
-    private val json = Json { ignoreUnknownKeys = true }
+        private val json = Json { ignoreUnknownKeys = true }
 
-    suspend fun parseFood(input: String): List<ParsedFoodItem> = withContext(Dispatchers.IO) {
-        try {
-            if (!geminiNanoService.initIfNeeded()) return@withContext emptyList()
+        suspend fun parseFood(input: String): List<ParsedFoodItem> =
+                withContext(Dispatchers.IO) {
+                        try {
+                                val prompt = PARSE_PROMPT + input.trim() + "\"\nOutput:"
+                                var response = ""
 
-            val prompt = PARSE_PROMPT + input.trim() + "\"\nOutput:"
-            val response = geminiNanoService.generateContent(prompt)
-            if (response.isBlank()) return@withContext emptyList()
+                                if (mediaPipeLLMService.initialize()) {
+                                        response = mediaPipeLLMService.generateContent(prompt)
+                                }
 
-            extractJsonArray(response)
-        } catch (e: Exception) {
-            emptyList()
+                                if (response.isBlank() && geminiNanoService.initIfNeeded()) {
+                                        response = geminiNanoService.generateContent(prompt)
+                                }
+
+                                if (response.isBlank()) return@withContext emptyList()
+
+                                extractJsonArray(response)
+                        } catch (e: Exception) {
+                                emptyList()
+                        }
+                }
+
+        suspend fun aiNutritionLookup(food: String): NutritionResult? =
+                withContext(Dispatchers.IO) {
+                        try {
+                                val prompt =
+                                        "What is the nutrition for 100g of $food? Return ONLY a JSON object with: name (string), calories (number), protein (number, grams), carbs (number, grams), fat (number, grams). Use USDA values. Example: {\"name\":\"Banana\",\"calories\":89,\"protein\":1.1,\"carbs\":22.8,\"fat\":0.3}"
+                                var response = ""
+
+                                if (mediaPipeLLMService.initialize()) {
+                                        response = mediaPipeLLMService.generateContent(prompt)
+                                }
+
+                                if (response.isBlank() && geminiNanoService.initIfNeeded()) {
+                                        response = geminiNanoService.generateContent(prompt)
+                                }
+
+                                if (response.isBlank()) return@withContext null
+
+                                val jsonObj = extractJsonObject(response) ?: return@withContext null
+                                val calories =
+                                        jsonObj["calories"]?.jsonPrimitive?.content?.toIntOrNull()
+                                                ?: return@withContext null
+                                if (calories <= 0) return@withContext null
+
+                                NutritionResult(
+                                        name = jsonObj["name"]?.jsonPrimitive?.content ?: food,
+                                        calories = calories,
+                                        protein =
+                                                round1(
+                                                        jsonObj["protein"]?.jsonPrimitive?.content
+                                                                ?.toDoubleOrNull()
+                                                                ?: 0.0
+                                                ),
+                                        carbs =
+                                                round1(
+                                                        jsonObj["carbs"]?.jsonPrimitive?.content
+                                                                ?.toDoubleOrNull()
+                                                                ?: 0.0
+                                                ),
+                                        fat =
+                                                round1(
+                                                        jsonObj["fat"]?.jsonPrimitive?.content
+                                                                ?.toDoubleOrNull()
+                                                                ?: 0.0
+                                                ),
+                                        servingDescription = "100g"
+                                )
+                        } catch (e: Exception) {
+                                null
+                        }
+                }
+
+        private fun extractJsonArray(text: String): List<ParsedFoodItem> {
+                return try {
+                        var searchText = text
+                        val codeBlockMatch = Regex("""```(?:json)?\s*([\s\S]*?)```""").find(text)
+                        if (codeBlockMatch != null) {
+                                searchText = codeBlockMatch.groupValues[1].trim()
+                        }
+                        val jsonMatch =
+                                Regex("""\[[\s\S]*?]""").find(searchText) ?: return emptyList()
+                        val parsed = json.parseToJsonElement(jsonMatch.value).jsonArray
+                        if (parsed.isEmpty()) return emptyList()
+
+                        parsed.mapNotNull { element ->
+                                val item = element.jsonObject
+                                val name =
+                                        item["name"]?.jsonPrimitive?.content?.trim()
+                                                ?: return@mapNotNull null
+                                val calories =
+                                        item["calories"]?.jsonPrimitive?.content?.toIntOrNull()
+                                                ?: return@mapNotNull null
+                                if (calories <= 0) return@mapNotNull null
+
+                                ParsedFoodItem(
+                                        name = name,
+                                        calories =
+                                                safeDouble(item["calories"]?.jsonPrimitive?.content)
+                                                        .toInt(),
+                                        protein =
+                                                round1(
+                                                        safeDouble(
+                                                                item["protein"]
+                                                                        ?.jsonPrimitive
+                                                                        ?.content
+                                                        )
+                                                ),
+                                        carbs =
+                                                round1(
+                                                        safeDouble(
+                                                                item["carbs"]
+                                                                        ?.jsonPrimitive
+                                                                        ?.content
+                                                        )
+                                                ),
+                                        fat =
+                                                round1(
+                                                        safeDouble(
+                                                                item["fat"]?.jsonPrimitive?.content
+                                                        )
+                                                ),
+                                        sugar =
+                                                round1(
+                                                        safeDouble(
+                                                                item["sugar"]
+                                                                        ?.jsonPrimitive
+                                                                        ?.content
+                                                        )
+                                                ),
+                                        quantity =
+                                                item["quantity"]?.jsonPrimitive?.content?.takeIf {
+                                                        it.isNotBlank()
+                                                }
+                                                        ?: "1 serving",
+                                        confidence =
+                                                item["confidence"]
+                                                        ?.jsonPrimitive
+                                                        ?.content
+                                                        ?.toFloatOrNull()
+                                                        ?.coerceIn(0f, 1f)
+                                )
+                        }
+                } catch (e: Exception) {
+                        emptyList()
+                }
         }
-    }
 
-    suspend fun aiNutritionLookup(food: String): NutritionResult? = withContext(Dispatchers.IO) {
-        try {
-            if (!geminiNanoService.initIfNeeded()) return@withContext null
-
-            val prompt =
-                "What is the nutrition for 100g of $food? Return ONLY a JSON object with: name (string), calories (number), protein (number, grams), carbs (number, grams), fat (number, grams). Use USDA values. Example: {\"name\":\"Banana\",\"calories\":89,\"protein\":1.1,\"carbs\":22.8,\"fat\":0.3}"
-            val response = geminiNanoService.generateContent(prompt)
-            if (response.isBlank()) return@withContext null
-
-            val jsonObj = extractJsonObject(response) ?: return@withContext null
-            val calories = jsonObj["calories"]?.jsonPrimitive?.content?.toIntOrNull() ?: return@withContext null
-            if (calories <= 0) return@withContext null
-
-            NutritionResult(
-                name = jsonObj["name"]?.jsonPrimitive?.content ?: food,
-                calories = calories,
-                protein = round1(jsonObj["protein"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 0.0),
-                carbs = round1(jsonObj["carbs"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 0.0),
-                fat = round1(jsonObj["fat"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 0.0),
-                servingDescription = "100g"
-            )
-        } catch (e: Exception) {
-            null
+        private fun extractJsonObject(text: String): kotlinx.serialization.json.JsonObject? {
+                return try {
+                        var searchText = text
+                        val codeBlockMatch = Regex("""```(?:json)?\s*([\s\S]*?)```""").find(text)
+                        if (codeBlockMatch != null) {
+                                searchText = codeBlockMatch.groupValues[1].trim()
+                        }
+                        val match = Regex("""\{[\s\S]*?\}""").find(searchText) ?: return null
+                        json.parseToJsonElement(match.value).jsonObject
+                } catch (e: Exception) {
+                        null
+                }
         }
-    }
 
-    private fun extractJsonArray(text: String): List<ParsedFoodItem> {
-        return try {
-            var searchText = text
-            val codeBlockMatch = Regex("""```(?:json)?\s*([\s\S]*?)```""").find(text)
-            if (codeBlockMatch != null) {
-                searchText = codeBlockMatch.groupValues[1].trim()
-            }
-            val jsonMatch = Regex("""\[[\s\S]*?]""").find(searchText) ?: return emptyList()
-            val parsed = json.parseToJsonElement(jsonMatch.value).jsonArray
-            if (parsed.isEmpty()) return emptyList()
+        suspend fun parseNutritionLabel(bitmap: Bitmap): NutritionResult? =
+                withContext(Dispatchers.IO) {
+                        try {
+                                if (!geminiNanoService.initIfNeeded()) return@withContext null
 
-            parsed.mapNotNull { element ->
-                val item = element.jsonObject
-                val name = item["name"]?.jsonPrimitive?.content?.trim() ?: return@mapNotNull null
-                val calories = item["calories"]?.jsonPrimitive?.content?.toIntOrNull() ?: return@mapNotNull null
-                if (calories <= 0) return@mapNotNull null
+                                val response =
+                                        geminiNanoService.generateContent(bitmap, LABEL_PROMPT)
+                                if (response.isBlank()) return@withContext null
 
-                ParsedFoodItem(
-                    name = name,
-                    calories = safeDouble(item["calories"]?.jsonPrimitive?.content).toInt(),
-                    protein = round1(safeDouble(item["protein"]?.jsonPrimitive?.content)),
-                    carbs = round1(safeDouble(item["carbs"]?.jsonPrimitive?.content)),
-                    fat = round1(safeDouble(item["fat"]?.jsonPrimitive?.content)),
-                    sugar = round1(safeDouble(item["sugar"]?.jsonPrimitive?.content)),
-                    quantity = item["quantity"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() } ?: "1 serving",
-                    confidence = item["confidence"]?.jsonPrimitive?.content?.toFloatOrNull()?.coerceIn(0f, 1f)
-                )
-            }
-        } catch (e: Exception) {
-            emptyList()
+                                val jsonObj = extractJsonObject(response) ?: return@withContext null
+                                val name =
+                                        jsonObj["name"]?.jsonPrimitive?.content?.trim() ?: "Unknown"
+                                val calories =
+                                        jsonObj["calories"]?.jsonPrimitive?.content?.toIntOrNull()
+                                                ?: return@withContext null
+                                if (calories <= 0) return@withContext null
+
+                                val servingSize =
+                                        jsonObj["serving_size"]?.jsonPrimitive?.content
+                                                ?: "1 serving"
+                                val confidence =
+                                        jsonObj["confidence"]
+                                                ?.jsonPrimitive
+                                                ?.content
+                                                ?.toFloatOrNull()
+                                                ?.coerceIn(0f, 1f)
+
+                                NutritionResult(
+                                        name = name,
+                                        calories = calories,
+                                        protein =
+                                                round1(
+                                                        safeDouble(
+                                                                jsonObj["protein"]
+                                                                        ?.jsonPrimitive
+                                                                        ?.content
+                                                        )
+                                                ),
+                                        carbs =
+                                                round1(
+                                                        safeDouble(
+                                                                jsonObj["carbs"]
+                                                                        ?.jsonPrimitive
+                                                                        ?.content
+                                                        )
+                                                ),
+                                        fat =
+                                                round1(
+                                                        safeDouble(
+                                                                jsonObj["fat"]
+                                                                        ?.jsonPrimitive
+                                                                        ?.content
+                                                        )
+                                                ),
+                                        sugar =
+                                                round1(
+                                                        safeDouble(
+                                                                jsonObj["sugar"]
+                                                                        ?.jsonPrimitive
+                                                                        ?.content
+                                                        )
+                                                ),
+                                        servingDescription = servingSize,
+                                        confidence = confidence
+                                )
+                        } catch (e: Exception) {
+                                null
+                        }
+                }
+
+        private fun safeDouble(text: String?): Double {
+                if (text == null) return 0.0
+                // Use regex to find the first numeric part (e.g. "1.5g" -> "1.5")
+                val match = Regex("""([\d.]+)""").find(text)
+                return match?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0
         }
-    }
 
-    private fun extractJsonObject(text: String): kotlinx.serialization.json.JsonObject? {
-        return try {
-            var searchText = text
-            val codeBlockMatch = Regex("""```(?:json)?\s*([\s\S]*?)```""").find(text)
-            if (codeBlockMatch != null) {
-                searchText = codeBlockMatch.groupValues[1].trim()
-            }
-            val match = Regex("""\{[\s\S]*?\}""").find(searchText) ?: return null
-            json.parseToJsonElement(match.value).jsonObject
-        } catch (e: Exception) {
-            null
-        }
-    }
+        private fun round1(n: Double): Float = (kotlin.math.round(n * 10) / 10.0).toFloat()
 
-    suspend fun parseNutritionLabel(bitmap: Bitmap): NutritionResult? = withContext(Dispatchers.IO) {
-        try {
-            if (!geminiNanoService.initIfNeeded()) return@withContext null
-
-            val response = geminiNanoService.generateContent(bitmap, LABEL_PROMPT)
-            if (response.isBlank()) return@withContext null
-
-            val jsonObj = extractJsonObject(response) ?: return@withContext null
-            val name = jsonObj["name"]?.jsonPrimitive?.content?.trim() ?: "Unknown"
-            val calories = jsonObj["calories"]?.jsonPrimitive?.content?.toIntOrNull() ?: return@withContext null
-            if (calories <= 0) return@withContext null
-
-            val servingSize = jsonObj["serving_size"]?.jsonPrimitive?.content ?: "1 serving"
-            val confidence = jsonObj["confidence"]?.jsonPrimitive?.content?.toFloatOrNull()?.coerceIn(0f, 1f)
-
-            NutritionResult(
-                name = name,
-                calories = safeDouble(jsonObj["calories"]?.jsonPrimitive?.content).toInt(),
-                protein = round1(safeDouble(jsonObj["protein"]?.jsonPrimitive?.content)),
-                carbs = round1(safeDouble(jsonObj["carbs"]?.jsonPrimitive?.content)),
-                fat = round1(safeDouble(jsonObj["fat"]?.jsonPrimitive?.content)),
-                sugar = round1(safeDouble(jsonObj["sugar"]?.jsonPrimitive?.content)),
-                servingDescription = servingSize,
-                confidence = confidence
-            )
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    private fun safeDouble(text: String?): Double {
-        if (text == null) return 0.0
-        // Use regex to find the first numeric part (e.g. "1.5g" -> "1.5")
-        val match = Regex("""([\d.]+)""").find(text)
-        return match?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0
-    }
-
-    private fun round1(n: Double): Float = (kotlin.math.round(n * 10) / 10.0).toFloat()
-
-    companion object {
-        private const val PARSE_PROMPT = """You are a nutrition assistant. Given a food description, extract each food item with estimated nutrition per serving.
+        companion object {
+                private const val PARSE_PROMPT =
+                        """You are a nutrition assistant. Given a food description, extract each food item with estimated nutrition per serving.
 
 Return ONLY a JSON array. Each item must have: name, calories (number), protein (number, grams), carbs (number, grams), fat (number, grams), sugar (number, grams — total sugars), quantity (string, like "1 medium" or "100g"), confidence (number, 0.0 to 1.0 — how confident you are in the nutrition values: 1.0 = exact known values, 0.7+ = well-known food, 0.4-0.7 = rough estimate, below 0.4 = guessing).
 
@@ -162,7 +279,8 @@ Output: [{"name":"Almonds","calories":164,"protein":6,"carbs":6,"fat":14,"sugar"
 Now parse this:
 Input: """
 
-        private const val LABEL_PROMPT = """Read the nutrition facts label in this image. Return ONLY a JSON object with these fields:
+                private const val LABEL_PROMPT =
+                        """Read the nutrition facts label in this image. Return ONLY a JSON object with these fields:
 - name (string): the product name if visible, otherwise "Unknown"
 - serving_size (string): the serving size shown on the label. Prefer decimals (e.g. "1.5 cups" instead of "1 1/2 cups") if possible.
 - calories (number): calories ALWAYS as a pure number (no units)
@@ -175,5 +293,5 @@ Input: """
 Example: {"name":"Cheerios","serving_size":"1.5 cups (58g)","calories":210,"protein":5,"carbs":44,"fat":3.5,"sugar":12,"confidence":0.95}
 
 Return ONLY the JSON object, no other text."""
-    }
+        }
 }

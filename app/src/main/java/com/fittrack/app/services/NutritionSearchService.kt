@@ -15,6 +15,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 
 class NutritionSearchService(
+        private val mediaPipeLLMService: com.fittrack.app.services.MediaPipeLLMService,
         private val geminiNanoService: com.fittrack.app.services.GeminiNanoService,
         private val client: OkHttpClient =
                 OkHttpClient.Builder()
@@ -333,9 +334,10 @@ class NutritionSearchService(
                         if (texts.isEmpty()) return null
                         val all = texts.joinToString(" ")
 
-                        // Try AI parsing first
-                        if (geminiNanoService.initIfNeeded()) {
-                                onStatus("Parsing with AI...")
+                        // Try AI parsing first (Gemma)
+                        var aiResponse = ""
+                        if (mediaPipeLLMService.initialize()) {
+                                onStatus("Parsing with AI (Gemma)...")
                                 try {
                                         val prompt =
                                                 "" +
@@ -343,7 +345,26 @@ class NutritionSearchService(
                                                         "\"name\" (string), \"calories\" (integer), \"protein_g\" (float), \"carbs_g\" (float), \"fat_g\" (float), \"sugar_g\" (float), \"serving_size\" (string). " +
                                                         "If a value is missing, use 0 for numbers and \"Unknown\" for strings. " +
                                                         "Output ONLY valid JSON.\n\nText: $all"
-                                        val aiResponse = geminiNanoService.generateContent(prompt)
+                                        aiResponse = mediaPipeLLMService.generateContent(prompt)
+                                } catch (e: Exception) {}
+                        }
+
+                        // Fallback to Gemini Nano
+                        if (aiResponse.isBlank() && geminiNanoService.initIfNeeded()) {
+                                onStatus("Parsing with AI (Gemini)...")
+                                try {
+                                        val prompt =
+                                                "" +
+                                                        "Extract nutrition facts from the following text as a JSON object with exactly these keys: " +
+                                                        "\"name\" (string), \"calories\" (integer), \"protein_g\" (float), \"carbs_g\" (float), \"fat_g\" (float), \"sugar_g\" (float), \"serving_size\" (string). " +
+                                                        "If a value is missing, use 0 for numbers and \"Unknown\" for strings. " +
+                                                        "Output ONLY valid JSON.\n\nText: $all"
+                                        aiResponse = geminiNanoService.generateContent(prompt)
+                                } catch (e: Exception) {}
+                        }
+
+                        if (aiResponse.isNotBlank()) {
+                                try {
                                         val cleaned =
                                                 aiResponse
                                                         .replace(Regex("```json\\s*"), "")

@@ -71,11 +71,15 @@ dependencies {
     // JSON
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 
     // Health Connect
     implementation("androidx.health.connect:connect-client:1.1.0-alpha11")
 
-    // ML Kit GenAI Prompt (Gemini Nano)
+    // MediaPipe Tasks GenAI
+    implementation("com.google.mediapipe:tasks-genai:0.10.18")
+
+    // Gemini Nano (ML Kit)
     implementation("com.google.mlkit:genai-prompt:1.0.0-beta1")
 
     // Google Fonts for Compose

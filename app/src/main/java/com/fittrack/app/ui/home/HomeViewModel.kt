@@ -4,11 +4,14 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.fittrack.app.data.DownloadState
 import com.fittrack.app.data.FoodRepository
 import com.fittrack.app.data.GoalsRepository
+import com.fittrack.app.data.ModelDownloadManager
 import com.fittrack.app.data.StepsRepository
 import com.fittrack.app.services.GeminiNanoService
 import com.fittrack.app.services.HealthConnectService
+import com.fittrack.app.services.MediaPipeLLMService
 import com.fittrack.app.services.PedometerService
 import com.fittrack.app.util.todayKey
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,12 +32,17 @@ constructor(
     private val stepsRepository = StepsRepository(application)
     private val healthConnectService = HealthConnectService()
     private val pedometerService = PedometerService()
-    private val geminiNanoService = GeminiNanoService()
+
+    private val modelDownloadManager = ModelDownloadManager(application)
+    private val mediaPipeLLMService =
+            MediaPipeLLMService(application, modelDownloadManager.getModelFile().absolutePath)
+    private val geminiNanoService = GeminiNanoService(application)
 
     private val coachTipUseCase =
             CoachTipUseCase(
                     foodRepository = foodRepository,
                     stepsRepository = stepsRepository,
+                    mediaPipeLLMService = mediaPipeLLMService,
                     geminiNanoService = geminiNanoService,
                     random = random
             )
@@ -87,7 +95,19 @@ constructor(
     private val _coachTip = MutableStateFlow("")
     val coachTip: StateFlow<String> = _coachTip.asStateFlow()
 
+    private val _downloadState = MutableStateFlow<DownloadState>(DownloadState.Idle)
+    val downloadState: StateFlow<DownloadState> = _downloadState.asStateFlow()
+
+    private val _downloadProgress = MutableStateFlow(0f)
+    val downloadProgress: StateFlow<Float> = _downloadProgress.asStateFlow()
+
     init {
+        viewModelScope.launch {
+            modelDownloadManager.downloadState.collect { _downloadState.value = it }
+        }
+        viewModelScope.launch {
+            modelDownloadManager.downloadProgress.collect { _downloadProgress.value = it }
+        }
         loadData()
     }
 
@@ -150,6 +170,10 @@ constructor(
             val savedSteps = stepsRepository.getSteps(today)
             _steps.value = savedSteps
             _caloriesBurned.value = estimateCaloriesBurned(savedSteps, weightLbs)
+
+            // Start model download if needed
+            viewModelScope.launch { modelDownloadManager.downloadModelIfNeeded() }
+
             generateCoachTip()
         }
     }
@@ -186,5 +210,6 @@ constructor(
     override fun onCleared() {
         super.onCleared()
         pedometerService.stop()
+        viewModelScope.launch { mediaPipeLLMService.tryClosing() }
     }
 }

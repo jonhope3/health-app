@@ -30,8 +30,8 @@ class ModelDownloadManager(private val context: Context) {
     val downloadProgress: Flow<Float> = _downloadProgress.asStateFlow()
 
     private val MODEL_URL =
-            "https://huggingface.co/litert-community/gemma-3-270m-it/resolve/main/gemma3-270m-it-q8.task?download=true"
-    private val MODEL_FILENAME = "gemma3-270m-it-q8.task"
+            "https://huggingface.co/google/gemma-3-4b-it-litert-preview/resolve/main/gemma3-4b-it-q8.task"
+    private val MODEL_FILENAME = "gemma3-4b-it-q8.task"
 
     private val okHttpClient =
             OkHttpClient.Builder()
@@ -46,9 +46,7 @@ class ModelDownloadManager(private val context: Context) {
     suspend fun isModelDownloaded(): Boolean =
             withContext(Dispatchers.IO) {
                 val file = getModelFile()
-                file.exists() &&
-                        file.length() >
-                                200_000_000L // Approx 300MB, so verify it's reasonably large
+                file.exists() && file.length() > 1_000_000_000L // Approx 1.5GB - 2GB for 4B Q8 task
             }
 
     suspend fun downloadModelIfNeeded() =

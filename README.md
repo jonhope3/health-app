@@ -101,6 +101,36 @@ This setup uses shared paths for the SDK location.
    make test
    ```
 
+### Release Builds (Optimized)
+
+To build a production-ready version of the app with code minification and resource shrinking enabled:
+
+1. **Build the Release APK**
+
+   ```bash
+   make release
+   ```
+
+   The unsigned APK will be generated at `app/build/outputs/apk/release/app-release-unsigned.apk`.
+
+2. **Sign the APK (Required for installation)**
+
+   For security, **never commit your production keystore or passwords to the repository.**
+
+   You can sign the APK using `apksigner`. If you don't have a keystore yet, you can create a temporary one for testing:
+
+   ```bash
+   # Generate a temporary keystore (Fill in your details when prompted)
+   keytool -genkey -v -keystore release.keystore -alias releaseAlias -keyalg RSA -keysize 2048 -validity 10000
+   ```
+
+   ```bash
+   # Sign the APK
+   apksigner sign --ks release.keystore --out app/build/outputs/apk/release/app-release-signed.apk app/build/outputs/apk/release/app-release-unsigned.apk
+   ```
+
+   The final signed APK will be available at `app/build/outputs/apk/release/app-release-signed.apk`.
+
 ### Troubleshooting
 
 If you encounter SDK location errors, ensure that `local.properties` points to the correct directory where your Android SDK is installed for your specific machine.

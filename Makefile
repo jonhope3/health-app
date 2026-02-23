@@ -20,6 +20,7 @@ help:
 	@echo "make teardown - 🛑 Stop Emulator & Clean Build"
 	@echo "make update   - 🔄 Fast Update: Reinstall & Launch App (Keep Emulator Running)"
 	@echo "make build    - Build the debug APK"
+	@echo "make release  - Build the release (minified) APK"
 	@echo "make test     - Run unit tests"
 	@echo "make clean    - Clean build artifacts"
 	@echo "make emulator - Launch the Pixel 10 Pro Emulator"
@@ -53,6 +54,10 @@ update: run
 # Build the debug APK
 build:
 	$(GRADLE) assembleDebug
+
+# Build the release APK
+release:
+	$(GRADLE) assembleRelease
 
 # Run unit tests
 test:

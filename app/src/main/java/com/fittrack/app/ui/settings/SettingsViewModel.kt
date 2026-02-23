@@ -1,31 +1,33 @@
 package com.fittrack.app.ui.settings
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.fittrack.app.data.GoalsRepository
+import com.fittrack.app.data.ModelDownloadManager
 import com.fittrack.app.services.GeminiNanoService
 import com.fittrack.app.services.HealthConnectService
+import com.fittrack.app.services.MediaPipeLLMService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import android.content.Context
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-data class DbEntry(
-    val table: String,
-    val key: String,
-    val value: String
-)
+data class DbEntry(val table: String, val key: String, val value: String)
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val goalsRepository = GoalsRepository(application)
     private val healthConnectService = HealthConnectService()
-    private val geminiNanoService = GeminiNanoService()
+
+    private val modelDownloadManager = ModelDownloadManager(application)
+    private val mediaPipeLLMService =
+            MediaPipeLLMService(application, modelDownloadManager.getModelFile().absolutePath)
+    private val geminiNanoService = GeminiNanoService(application)
     private val json = Json { ignoreUnknownKeys = true }
 
     private val _healthConnectGranted = MutableStateFlow(false)
@@ -79,7 +81,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         loadData()
         checkHealthConnect()
         viewModelScope.launch {
-            _geminiReady.value = geminiNanoService.initIfNeeded()
+            val gemmaDownloaded = modelDownloadManager.isModelDownloaded()
+            val nanoAvailable = geminiNanoService.isAvailable()
+            _geminiReady.value = gemmaDownloaded || nanoAvailable
+
+            if (!gemmaDownloaded) {
+                modelDownloadManager.downloadModelIfNeeded()
+                _geminiReady.value =
+                        modelDownloadManager.isModelDownloaded() || geminiNanoService.isAvailable()
+            }
         }
     }
 
@@ -88,11 +98,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val p = app.getSharedPreferences("fittrack_goals", Context.MODE_PRIVATE)
         if (!p.contains("calorie_goal")) {
             p.edit()
-                .putInt("calorie_goal", 2000)
-                .putInt("step_goal", 10000)
-                .putFloat("weight_lbs", 160f)
-                .putFloat("height_in", 68f)
-                .apply()
+                    .putInt("calorie_goal", 2000)
+                    .putInt("step_goal", 10000)
+                    .putFloat("weight_lbs", 160f)
+                    .putFloat("height_in", 68f)
+                    .apply()
         }
 
         val f = app.getSharedPreferences("fittrack_food", Context.MODE_PRIVATE)
@@ -129,22 +139,50 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _sugarGoal.value = goalsRepository.getSugarGoalG().toString()
     }
 
-    fun setCalorieGoal(v: String) { _calorieGoal.value = v.filter { it.isDigit() } }
-    fun setStepGoal(v: String) { _stepGoal.value = v.filter { it.isDigit() } }
-    fun setWeightLbs(v: String) { _weightLbs.value = v.filter { it.isDigit() || it == '.' } }
-    fun setHeightFt(v: String) { _heightFt.value = v.filter { it.isDigit() } }
-    fun setHeightIn(v: String) { _heightIn.value = v.filter { it.isDigit() } }
-    fun setAge(v: String) { _age.value = v.filter { it.isDigit() } }
-    fun setNickname(v: String) { _nickname.value = v }
-    fun setProteinGoal(v: String) { _proteinGoal.value = v.filter { it.isDigit() } }
-    fun setCarbsGoal(v: String) { _carbsGoal.value = v.filter { it.isDigit() } }
-    fun setFatGoal(v: String) { _fatGoal.value = v.filter { it.isDigit() } }
-    fun setSugarGoal(v: String) { _sugarGoal.value = v.filter { it.isDigit() } }
+    fun setCalorieGoal(v: String) {
+        _calorieGoal.value = v.filter { it.isDigit() }
+    }
+    fun setStepGoal(v: String) {
+        _stepGoal.value = v.filter { it.isDigit() }
+    }
+    fun setWeightLbs(v: String) {
+        _weightLbs.value = v.filter { it.isDigit() || it == '.' }
+    }
+    fun setHeightFt(v: String) {
+        _heightFt.value = v.filter { it.isDigit() }
+    }
+    fun setHeightIn(v: String) {
+        _heightIn.value = v.filter { it.isDigit() }
+    }
+    fun setAge(v: String) {
+        _age.value = v.filter { it.isDigit() }
+    }
+    fun setNickname(v: String) {
+        _nickname.value = v
+    }
+    fun setProteinGoal(v: String) {
+        _proteinGoal.value = v.filter { it.isDigit() }
+    }
+    fun setCarbsGoal(v: String) {
+        _carbsGoal.value = v.filter { it.isDigit() }
+    }
+    fun setFatGoal(v: String) {
+        _fatGoal.value = v.filter { it.isDigit() }
+    }
+    fun setSugarGoal(v: String) {
+        _sugarGoal.value = v.filter { it.isDigit() }
+    }
 
     fun save() {
-        _calorieGoal.value.toIntOrNull()?.let { if (it in 500..10000) goalsRepository.setCalorieGoal(it) }
-        _stepGoal.value.toIntOrNull()?.let { if (it in 100..200000) goalsRepository.setStepGoal(it) }
-        _weightLbs.value.toFloatOrNull()?.let { if (it in 50f..700f) goalsRepository.setWeightLbs(it) }
+        _calorieGoal.value.toIntOrNull()?.let {
+            if (it in 500..10000) goalsRepository.setCalorieGoal(it)
+        }
+        _stepGoal.value.toIntOrNull()?.let {
+            if (it in 100..200000) goalsRepository.setStepGoal(it)
+        }
+        _weightLbs.value.toFloatOrNull()?.let {
+            if (it in 50f..700f) goalsRepository.setWeightLbs(it)
+        }
         val ft = _heightFt.value.toIntOrNull() ?: 0
         val inches = _heightIn.value.toIntOrNull() ?: 0
         val totalInches = ft * 12f + inches
@@ -155,7 +193,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun saveMacroGoals() {
-        _proteinGoal.value.toIntOrNull()?.let { if (it in 0..500) goalsRepository.setProteinGoalG(it) }
+        _proteinGoal.value.toIntOrNull()?.let {
+            if (it in 0..500) goalsRepository.setProteinGoalG(it)
+        }
         _carbsGoal.value.toIntOrNull()?.let { if (it in 0..1000) goalsRepository.setCarbsGoalG(it) }
         _fatGoal.value.toIntOrNull()?.let { if (it in 0..500) goalsRepository.setFatGoalG(it) }
         _sugarGoal.value.toIntOrNull()?.let { if (it in 0..500) goalsRepository.setSugarGoalG(it) }
@@ -166,20 +206,79 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             _isGeneratingMacros.value = true
             _macroGenerateError.value = null
             try {
-                if (!geminiNanoService.initIfNeeded()) {
-                    _macroGenerateError.value = "Gemini Nano not available — set goals manually"
+                var response = ""
+                if (mediaPipeLLMService.initialize()) {
+                    val cals = _calorieGoal.value.toIntOrNull() ?: goalsRepository.getCalorieGoal()
+                    val weightLbs =
+                            _weightLbs.value.toFloatOrNull() ?: goalsRepository.getWeightLbs()
+                    val heightFt = _heightFt.value.toIntOrNull() ?: 0
+                    val heightIn = _heightIn.value.toIntOrNull() ?: 0
+                    val totalIn = heightFt * 12 + heightIn
+                    val age = _age.value.toIntOrNull() ?: goalsRepository.getAge()
+
+                    val prompt = buildMacroPrompt(age, weightLbs, totalIn, cals)
+                    response = mediaPipeLLMService.generateContent(prompt)
+                }
+
+                if (response.isBlank() && geminiNanoService.initIfNeeded()) {
+                    val cals = _calorieGoal.value.toIntOrNull() ?: goalsRepository.getCalorieGoal()
+                    val weightLbs =
+                            _weightLbs.value.toFloatOrNull() ?: goalsRepository.getWeightLbs()
+                    val heightFt = _heightFt.value.toIntOrNull() ?: 0
+                    val heightIn = _heightIn.value.toIntOrNull() ?: 0
+                    val totalIn = heightFt * 12 + heightIn
+                    val age = _age.value.toIntOrNull() ?: goalsRepository.getAge()
+
+                    val prompt = buildMacroPrompt(age, weightLbs, totalIn, cals)
+                    response = geminiNanoService.generateContent(prompt)
+                }
+
+                if (response.isBlank()) {
+                    _macroGenerateError.value = "AI Coach not available — set goals manually"
                     _isGeneratingMacros.value = false
                     return@launch
                 }
 
-                val cals = _calorieGoal.value.toIntOrNull() ?: goalsRepository.getCalorieGoal()
-                val weightLbs = _weightLbs.value.toFloatOrNull() ?: goalsRepository.getWeightLbs()
-                val heightFt = _heightFt.value.toIntOrNull() ?: 0
-                val heightIn = _heightIn.value.toIntOrNull() ?: 0
-                val totalIn = heightFt * 12 + heightIn
-                val age = _age.value.toIntOrNull() ?: goalsRepository.getAge()
+                val jsonMatch = Regex("""\{[\s\S]*?\}""").find(response)
+                val obj =
+                        jsonMatch?.let {
+                            try {
+                                json.parseToJsonElement(it.value).jsonObject
+                            } catch (_: Exception) {
+                                null
+                            }
+                        }
 
-                val prompt = """You are a registered dietitian. Based on the following user profile, recommend daily macro intake goals.
+                if (obj == null) {
+                    _macroGenerateError.value = "Couldn't parse response — try again"
+                    _isGeneratingMacros.value = false
+                    return@launch
+                }
+
+                obj["protein"]?.jsonPrimitive?.content?.toIntOrNull()?.let {
+                    _proteinGoal.value = it.toString()
+                }
+                obj["carbs"]?.jsonPrimitive?.content?.toIntOrNull()?.let {
+                    _carbsGoal.value = it.toString()
+                }
+                obj["fat"]?.jsonPrimitive?.content?.toIntOrNull()?.let {
+                    _fatGoal.value = it.toString()
+                }
+                obj["sugar"]?.jsonPrimitive?.content?.toIntOrNull()?.let {
+                    _sugarGoal.value = it.toString()
+                }
+
+                // Auto-save immediately after generation
+                saveMacroGoals()
+            } catch (e: Exception) {
+                _macroGenerateError.value = "Error: ${e.message}"
+            }
+            _isGeneratingMacros.value = false
+        }
+    }
+
+    private fun buildMacroPrompt(age: Int, weightLbs: Float, totalIn: Int, cals: Int): String {
+        return """You are a registered dietitian. Based on the following user profile, recommend daily macro intake goals.
 
 User: age=$age years, weight=${weightLbs.toInt()} lbs, height=${totalIn}in, daily calorie goal=$cals kcal.
 
@@ -193,43 +292,10 @@ Base on standard nutrition guidelines (e.g. Dietary Guidelines for Americans, IS
 Example: {"protein":120,"carbs":225,"fat":65,"sugar":50}
 
 Return ONLY the JSON object, no other text."""
-
-                val response = geminiNanoService.generateContent(prompt)
-                if (response.isBlank()) {
-                    _macroGenerateError.value = "No response — try again"
-                    _isGeneratingMacros.value = false
-                    return@launch
-                }
-
-                val jsonMatch = Regex("""\{[\s\S]*?\}""").find(response)
-                val obj = jsonMatch?.let {
-                    try { json.parseToJsonElement(it.value).jsonObject } catch (_: Exception) { null }
-                }
-
-                if (obj == null) {
-                    _macroGenerateError.value = "Couldn't parse response — try again"
-                    _isGeneratingMacros.value = false
-                    return@launch
-                }
-
-                obj["protein"]?.jsonPrimitive?.content?.toIntOrNull()?.let { _proteinGoal.value = it.toString() }
-                obj["carbs"]?.jsonPrimitive?.content?.toIntOrNull()?.let { _carbsGoal.value = it.toString() }
-                obj["fat"]?.jsonPrimitive?.content?.toIntOrNull()?.let { _fatGoal.value = it.toString() }
-                obj["sugar"]?.jsonPrimitive?.content?.toIntOrNull()?.let { _sugarGoal.value = it.toString() }
-
-                // Auto-save immediately after generation
-                saveMacroGoals()
-
-            } catch (e: Exception) {
-                _macroGenerateError.value = "Error: ${e.message}"
-            }
-            _isGeneratingMacros.value = false
-        }
     }
 
     private fun fmtNum(v: Float): String {
-        return if (v == v.toLong().toFloat()) v.toLong().toString()
-        else "%.1f".format(v)
+        return if (v == v.toLong().toFloat()) v.toLong().toString() else "%.1f".format(v)
     }
 
     fun nukeDb() {
@@ -256,5 +322,9 @@ Return ONLY the JSON object, no other text."""
             }
         }
         return list.sortedBy { it.table }
+    }
+    override fun onCleared() {
+        super.onCleared()
+        viewModelScope.launch { mediaPipeLLMService.tryClosing() }
     }
 }

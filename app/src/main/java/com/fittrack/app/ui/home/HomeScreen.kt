@@ -322,6 +322,8 @@ fun HomeScreen(navController: NavController, viewModel: HomeViewModel = viewMode
         val sugarGoalG by viewModel.sugarGoalG.collectAsState()
         val nickname by viewModel.nickname.collectAsState()
         val coachTip by viewModel.coachTip.collectAsState()
+        val downloadState by viewModel.downloadState.collectAsState()
+        val downloadProgress by viewModel.downloadProgress.collectAsState()
 
         if (showOnboarding) {
                 OnboardingDialog(
@@ -426,8 +428,14 @@ fun HomeScreen(navController: NavController, viewModel: HomeViewModel = viewMode
                         Spacer(modifier = Modifier.height(24.dp))
 
                         // AI Coach card
+                        val isDownloading =
+                                downloadState is com.fittrack.app.data.DownloadState.Downloading
+                        val isError = downloadState is com.fittrack.app.data.DownloadState.Error
+
                         AnimatedVisibility(
-                                visible = cardVisible[0].value && coachTip.isNotBlank(),
+                                visible =
+                                        cardVisible[0].value &&
+                                                (coachTip.isNotBlank() || isDownloading || isError),
                                 enter =
                                         fadeIn(tween(400)) +
                                                 slideInVertically(tween(400)) { it / 3 }
@@ -462,13 +470,81 @@ fun HomeScreen(navController: NavController, viewModel: HomeViewModel = viewMode
                                                                 color = AppColors.primary
                                                         )
                                                         Spacer(modifier = Modifier.height(4.dp))
-                                                        Text(
-                                                                text = boldCoachTip(coachTip),
-                                                                fontFamily = interFamily,
-                                                                fontSize = 14.sp,
-                                                                lineHeight = 20.sp,
-                                                                color = AppColors.textPrimary
-                                                        )
+
+                                                        if (isDownloading) {
+                                                                Text(
+                                                                        text =
+                                                                                "Setting up AI Coach... ${(downloadProgress * 100).toInt()}%",
+                                                                        fontFamily = interFamily,
+                                                                        fontSize = 14.sp,
+                                                                        color =
+                                                                                AppColors
+                                                                                        .textPrimary
+                                                                )
+                                                                Spacer(
+                                                                        modifier =
+                                                                                Modifier.height(
+                                                                                        8.dp
+                                                                                )
+                                                                )
+                                                                LinearProgressIndicator(
+                                                                        progress = {
+                                                                                downloadProgress
+                                                                        },
+                                                                        modifier =
+                                                                                Modifier.fillMaxWidth()
+                                                                                        .height(
+                                                                                                4.dp
+                                                                                        )
+                                                                                        .clip(
+                                                                                                RoundedCornerShape(
+                                                                                                        2.dp
+                                                                                                )
+                                                                                        ),
+                                                                        color = AppColors.primary,
+                                                                        trackColor =
+                                                                                AppColors.primary
+                                                                                        .copy(
+                                                                                                alpha =
+                                                                                                        0.2f
+                                                                                        )
+                                                                )
+                                                                Text(
+                                                                        text =
+                                                                                "This only happens once. It's a large file (1.5GB) to enable offline privacy.",
+                                                                        fontFamily = interFamily,
+                                                                        fontSize = 11.sp,
+                                                                        color =
+                                                                                AppColors
+                                                                                        .textSecondary,
+                                                                        lineHeight = 14.sp,
+                                                                        modifier =
+                                                                                Modifier.padding(
+                                                                                        top = 4.dp
+                                                                                )
+                                                                )
+                                                        } else if (isError) {
+                                                                Text(
+                                                                        text =
+                                                                                "AI Coach unavailable: ${(downloadState as com.fittrack.app.data.DownloadState.Error).message}",
+                                                                        fontFamily = interFamily,
+                                                                        fontSize = 14.sp,
+                                                                        color = AppColors.calorie
+                                                                )
+                                                        } else {
+                                                                Text(
+                                                                        text =
+                                                                                boldCoachTip(
+                                                                                        coachTip
+                                                                                ),
+                                                                        fontFamily = interFamily,
+                                                                        fontSize = 14.sp,
+                                                                        lineHeight = 20.sp,
+                                                                        color =
+                                                                                AppColors
+                                                                                        .textPrimary
+                                                                )
+                                                        }
                                                 }
                                         }
                                 }

@@ -5,14 +5,17 @@ import android.graphics.Bitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.fittrack.app.data.DiaryItem
+import com.fittrack.app.data.DownloadState
 import com.fittrack.app.data.FoodItem
 import com.fittrack.app.data.FoodRepository
 import com.fittrack.app.data.GoalsRepository
 import com.fittrack.app.data.MealType
+import com.fittrack.app.data.ModelDownloadManager
 import com.fittrack.app.data.NutritionResult
 import com.fittrack.app.data.ParsedFoodItem
 import com.fittrack.app.services.AiFoodParserService
 import com.fittrack.app.services.GeminiNanoService
+import com.fittrack.app.services.MediaPipeLLMService
 import com.fittrack.app.services.NutritionSearchService
 import com.fittrack.app.util.todayKey
 import java.util.UUID
@@ -25,9 +28,14 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
 
     private val foodRepository = FoodRepository(application)
     private val goalsRepository = GoalsRepository(application)
-    private val geminiNanoService = GeminiNanoService()
-    private val nutritionSearchService = NutritionSearchService(geminiNanoService)
-    private val aiFoodParserService = AiFoodParserService(geminiNanoService)
+
+    private val modelDownloadManager = ModelDownloadManager(application)
+    private val mediaPipeLLMService =
+            MediaPipeLLMService(application, modelDownloadManager.getModelFile().absolutePath)
+    private val geminiNanoService = GeminiNanoService(application)
+    private val nutritionSearchService =
+            NutritionSearchService(mediaPipeLLMService, geminiNanoService)
+    private val aiFoodParserService = AiFoodParserService(mediaPipeLLMService, geminiNanoService)
 
     private val _mode = MutableStateFlow("search")
     val mode: StateFlow<String> = _mode.asStateFlow()
@@ -88,6 +96,22 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _geminiReady = MutableStateFlow(false)
     val geminiReady: StateFlow<Boolean> = _geminiReady.asStateFlow()
+
+    private val _downloadState = MutableStateFlow<DownloadState>(DownloadState.Idle)
+    val downloadState: StateFlow<DownloadState> = _downloadState.asStateFlow()
+
+    private val _downloadProgress = MutableStateFlow(0f)
+    val downloadProgress: StateFlow<Float> = _downloadProgress.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            modelDownloadManager.downloadState.collect { _downloadState.value = it }
+        }
+        viewModelScope.launch {
+            modelDownloadManager.downloadProgress.collect { _downloadProgress.value = it }
+        }
+        loadData()
+    }
 
     private val _customFoodSuggestions = MutableStateFlow<List<FoodItem>>(emptyList())
     val customFoodSuggestions: StateFlow<List<FoodItem>> = _customFoodSuggestions.asStateFlow()
@@ -161,7 +185,14 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
             _calorieGoal.value = goalsRepository.getCalorieGoal()
             _caloriesEaten.value = foodRepository.getTotalCaloriesToday()
             _caloriesHistory.value = foodRepository.getCaloriesHistory(7)
-            _geminiReady.value = geminiNanoService.initIfNeeded()
+
+            // Check if model is ready
+            _geminiReady.value = modelDownloadManager.isModelDownloaded()
+
+            // Trigger download if not present
+            if (!_geminiReady.value) {
+                modelDownloadManager.downloadModelIfNeeded()
+            }
         }
     }
 
@@ -550,5 +581,10 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     fun clearSearchResult() {
         _searchResult.value = null
         _searchError.value = null
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        viewModelScope.launch { mediaPipeLLMService.tryClosing() }
     }
 }
