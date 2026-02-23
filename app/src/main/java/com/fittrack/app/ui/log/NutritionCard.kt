@@ -88,6 +88,7 @@ fun NutritionCard(
     val scaledProtein = result.protein * factor
     val scaledCarbs = result.carbs * factor
     val scaledFat = result.fat * factor
+    val scaledSugar = result.sugar * factor
 
     val showInput = result.servingDescription?.contains("100g", ignoreCase = true) == true
             || result.servingDescription?.contains("serving", ignoreCase = true) == true
@@ -272,6 +273,7 @@ fun NutritionCard(
                 MacroChip(label = "P", value = "${"%.1f".format(scaledProtein)}g", color = AppColors.protein)
                 MacroChip(label = "C", value = "${"%.1f".format(scaledCarbs)}g", color = AppColors.carbs)
                 MacroChip(label = "F", value = "${"%.1f".format(scaledFat)}g", color = AppColors.fat)
+                MacroChip(label = "S", value = "${"%.1f".format(scaledSugar)}g", color = AppColors.sugar)
             }
 
             Spacer(modifier = Modifier.height(16.dp))

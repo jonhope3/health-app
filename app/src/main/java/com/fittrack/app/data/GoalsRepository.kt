@@ -18,6 +18,22 @@ class GoalsRepository(context: Context) {
     fun getHeightIn(): Float = prefs.getFloat("height_in", 68f)
     fun setHeightIn(h: Float) { prefs.edit().putFloat("height_in", h).apply() }
 
+    fun getAge(): Int = prefs.getInt("age", 30)
+    fun setAge(age: Int) { prefs.edit().putInt("age", age).apply() }
+
+    // Macro goals in grams. Defaults based on a 2000-cal balanced diet.
+    fun getProteinGoalG(): Int = prefs.getInt("protein_goal_g", 100)
+    fun setProteinGoalG(g: Int) { prefs.edit().putInt("protein_goal_g", g).apply() }
+
+    fun getCarbsGoalG(): Int = prefs.getInt("carbs_goal_g", 250)
+    fun setCarbsGoalG(g: Int) { prefs.edit().putInt("carbs_goal_g", g).apply() }
+
+    fun getFatGoalG(): Int = prefs.getInt("fat_goal_g", 65)
+    fun setFatGoalG(g: Int) { prefs.edit().putInt("fat_goal_g", g).apply() }
+
+    fun getSugarGoalG(): Int = prefs.getInt("sugar_goal_g", 50)
+    fun setSugarGoalG(g: Int) { prefs.edit().putInt("sugar_goal_g", g).apply() }
+
     fun getNickname(): String = prefs.getString("nickname", "") ?: ""
     fun setNickname(name: String) { prefs.edit().putString("nickname", name.trim()).apply() }
 

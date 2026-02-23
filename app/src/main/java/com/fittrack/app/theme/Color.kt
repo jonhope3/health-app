@@ -30,6 +30,7 @@ object AppColors {
     val protein = Color(0xFF34A853) // Medium green
     val carbs = Color(0xFFFBBC04)   // Yellow
     val fat = Color(0xFFE37400)     // Orange
+    val sugar = Color(0xFFD81B60)   // Pink/magenta
     val steps = Color(0xFF4285F4)   // Medium blue
 
     val border = Color(0xFFDADCE0)  // Google divider grey

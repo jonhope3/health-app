@@ -40,12 +40,15 @@ class FoodRepository(context: Context) {
     fun getTotalCaloriesToday(): Int =
         getDiary(todayKey()).sumOf { it.calories }
 
-    fun getTodayMacros(): Triple<Float, Float, Float> {
+    data class TodayMacros(val protein: Float, val carbs: Float, val fat: Float, val sugar: Float)
+
+    fun getTodayMacros(): TodayMacros {
         val entries = getDiary(todayKey())
         val protein = entries.sumOf { it.protein.toDouble() }.toFloat()
         val carbs = entries.sumOf { it.carbs.toDouble() }.toFloat()
         val fat = entries.sumOf { it.fat.toDouble() }.toFloat()
-        return Triple(protein, carbs, fat)
+        val sugar = entries.sumOf { it.sugar.toDouble() }.toFloat()
+        return TodayMacros(protein, carbs, fat, sugar)
     }
 
     fun getCaloriesHistory(days: Int = 7): List<Pair<String, Int>> {

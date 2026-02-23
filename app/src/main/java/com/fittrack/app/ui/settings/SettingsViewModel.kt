@@ -4,12 +4,16 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.fittrack.app.data.GoalsRepository
+import com.fittrack.app.services.GeminiNanoService
 import com.fittrack.app.services.HealthConnectService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import android.content.Context
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 data class DbEntry(
     val table: String,
@@ -21,6 +25,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     private val goalsRepository = GoalsRepository(application)
     private val healthConnectService = HealthConnectService()
+    private val geminiNanoService = GeminiNanoService()
+    private val json = Json { ignoreUnknownKeys = true }
 
     private val _healthConnectGranted = MutableStateFlow(false)
     val healthConnectGranted: StateFlow<Boolean> = _healthConnectGranted.asStateFlow()
@@ -40,13 +46,41 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _heightIn = MutableStateFlow("")
     val heightIn: StateFlow<String> = _heightIn.asStateFlow()
 
+    private val _age = MutableStateFlow("")
+    val age: StateFlow<String> = _age.asStateFlow()
+
     private val _nickname = MutableStateFlow("")
     val nickname: StateFlow<String> = _nickname.asStateFlow()
+
+    // Macro goals (grams)
+    private val _proteinGoal = MutableStateFlow("")
+    val proteinGoal: StateFlow<String> = _proteinGoal.asStateFlow()
+
+    private val _carbsGoal = MutableStateFlow("")
+    val carbsGoal: StateFlow<String> = _carbsGoal.asStateFlow()
+
+    private val _fatGoal = MutableStateFlow("")
+    val fatGoal: StateFlow<String> = _fatGoal.asStateFlow()
+
+    private val _sugarGoal = MutableStateFlow("")
+    val sugarGoal: StateFlow<String> = _sugarGoal.asStateFlow()
+
+    private val _isGeneratingMacros = MutableStateFlow(false)
+    val isGeneratingMacros: StateFlow<Boolean> = _isGeneratingMacros.asStateFlow()
+
+    private val _macroGenerateError = MutableStateFlow<String?>(null)
+    val macroGenerateError: StateFlow<String?> = _macroGenerateError.asStateFlow()
+
+    private val _geminiReady = MutableStateFlow(false)
+    val geminiReady: StateFlow<Boolean> = _geminiReady.asStateFlow()
 
     init {
         ensureDefaults()
         loadData()
         checkHealthConnect()
+        viewModelScope.launch {
+            _geminiReady.value = geminiNanoService.initIfNeeded()
+        }
     }
 
     private fun ensureDefaults() {
@@ -87,7 +121,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val totalInches = goalsRepository.getHeightIn()
         _heightFt.value = (totalInches / 12).toInt().toString()
         _heightIn.value = (totalInches % 12).toInt().toString()
+        _age.value = goalsRepository.getAge().toString()
         _nickname.value = goalsRepository.getNickname()
+        _proteinGoal.value = goalsRepository.getProteinGoalG().toString()
+        _carbsGoal.value = goalsRepository.getCarbsGoalG().toString()
+        _fatGoal.value = goalsRepository.getFatGoalG().toString()
+        _sugarGoal.value = goalsRepository.getSugarGoalG().toString()
     }
 
     fun setCalorieGoal(v: String) { _calorieGoal.value = v.filter { it.isDigit() } }
@@ -95,7 +134,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setWeightLbs(v: String) { _weightLbs.value = v.filter { it.isDigit() || it == '.' } }
     fun setHeightFt(v: String) { _heightFt.value = v.filter { it.isDigit() } }
     fun setHeightIn(v: String) { _heightIn.value = v.filter { it.isDigit() } }
+    fun setAge(v: String) { _age.value = v.filter { it.isDigit() } }
     fun setNickname(v: String) { _nickname.value = v }
+    fun setProteinGoal(v: String) { _proteinGoal.value = v.filter { it.isDigit() } }
+    fun setCarbsGoal(v: String) { _carbsGoal.value = v.filter { it.isDigit() } }
+    fun setFatGoal(v: String) { _fatGoal.value = v.filter { it.isDigit() } }
+    fun setSugarGoal(v: String) { _sugarGoal.value = v.filter { it.isDigit() } }
 
     fun save() {
         _calorieGoal.value.toIntOrNull()?.let { if (it in 500..10000) goalsRepository.setCalorieGoal(it) }
@@ -105,8 +149,82 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val inches = _heightIn.value.toIntOrNull() ?: 0
         val totalInches = ft * 12f + inches
         if (totalInches in 36f..96f) goalsRepository.setHeightIn(totalInches)
+        _age.value.toIntOrNull()?.let { if (it in 1..120) goalsRepository.setAge(it) }
         val nick = _nickname.value.trim()
         if (nick.isNotEmpty()) goalsRepository.setNickname(nick)
+    }
+
+    fun saveMacroGoals() {
+        _proteinGoal.value.toIntOrNull()?.let { if (it in 0..500) goalsRepository.setProteinGoalG(it) }
+        _carbsGoal.value.toIntOrNull()?.let { if (it in 0..1000) goalsRepository.setCarbsGoalG(it) }
+        _fatGoal.value.toIntOrNull()?.let { if (it in 0..500) goalsRepository.setFatGoalG(it) }
+        _sugarGoal.value.toIntOrNull()?.let { if (it in 0..500) goalsRepository.setSugarGoalG(it) }
+    }
+
+    fun generateAiMacroGoals() {
+        viewModelScope.launch {
+            _isGeneratingMacros.value = true
+            _macroGenerateError.value = null
+            try {
+                if (!geminiNanoService.initIfNeeded()) {
+                    _macroGenerateError.value = "Gemini Nano not available — set goals manually"
+                    _isGeneratingMacros.value = false
+                    return@launch
+                }
+
+                val cals = _calorieGoal.value.toIntOrNull() ?: goalsRepository.getCalorieGoal()
+                val weightLbs = _weightLbs.value.toFloatOrNull() ?: goalsRepository.getWeightLbs()
+                val heightFt = _heightFt.value.toIntOrNull() ?: 0
+                val heightIn = _heightIn.value.toIntOrNull() ?: 0
+                val totalIn = heightFt * 12 + heightIn
+                val age = _age.value.toIntOrNull() ?: goalsRepository.getAge()
+
+                val prompt = """You are a registered dietitian. Based on the following user profile, recommend daily macro intake goals.
+
+User: age=$age years, weight=${weightLbs.toInt()} lbs, height=${totalIn}in, daily calorie goal=$cals kcal.
+
+Return ONLY a JSON object with these fields (all integers, in grams):
+- protein: recommended daily protein in grams
+- carbs: recommended daily carbs in grams  
+- fat: recommended daily fat in grams
+- sugar: recommended daily added sugar limit in grams
+
+Base on standard nutrition guidelines (e.g. Dietary Guidelines for Americans, ISSN protein recommendations).
+Example: {"protein":120,"carbs":225,"fat":65,"sugar":50}
+
+Return ONLY the JSON object, no other text."""
+
+                val response = geminiNanoService.generateContent(prompt)
+                if (response.isBlank()) {
+                    _macroGenerateError.value = "No response — try again"
+                    _isGeneratingMacros.value = false
+                    return@launch
+                }
+
+                val jsonMatch = Regex("""\{[\s\S]*?\}""").find(response)
+                val obj = jsonMatch?.let {
+                    try { json.parseToJsonElement(it.value).jsonObject } catch (_: Exception) { null }
+                }
+
+                if (obj == null) {
+                    _macroGenerateError.value = "Couldn't parse response — try again"
+                    _isGeneratingMacros.value = false
+                    return@launch
+                }
+
+                obj["protein"]?.jsonPrimitive?.content?.toIntOrNull()?.let { _proteinGoal.value = it.toString() }
+                obj["carbs"]?.jsonPrimitive?.content?.toIntOrNull()?.let { _carbsGoal.value = it.toString() }
+                obj["fat"]?.jsonPrimitive?.content?.toIntOrNull()?.let { _fatGoal.value = it.toString() }
+                obj["sugar"]?.jsonPrimitive?.content?.toIntOrNull()?.let { _sugarGoal.value = it.toString() }
+
+                // Auto-save immediately after generation
+                saveMacroGoals()
+
+            } catch (e: Exception) {
+                _macroGenerateError.value = "Error: ${e.message}"
+            }
+            _isGeneratingMacros.value = false
+        }
     }
 
     private fun fmtNum(v: Float): String {

@@ -2,8 +2,8 @@ package com.fittrack.app.ui.settings
 
 import android.content.Intent
 import android.net.Uri
-import android.widget.Toast
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -42,20 +42,27 @@ import com.fittrack.app.ui.common.ScreenScaffold
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun SettingsScreen(
-    viewModel: SettingsViewModel = viewModel()
-) {
+fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
     val context = LocalContext.current
     val calorieGoal by viewModel.calorieGoal.collectAsState()
     val stepGoal by viewModel.stepGoal.collectAsState()
     val weightLbs by viewModel.weightLbs.collectAsState()
     val heightFt by viewModel.heightFt.collectAsState()
     val heightIn by viewModel.heightIn.collectAsState()
+    val age by viewModel.age.collectAsState()
     val nickname by viewModel.nickname.collectAsState()
     val healthConnectGranted by viewModel.healthConnectGranted.collectAsState()
+    val proteinGoal by viewModel.proteinGoal.collectAsState()
+    val carbsGoal by viewModel.carbsGoal.collectAsState()
+    val fatGoal by viewModel.fatGoal.collectAsState()
+    val sugarGoal by viewModel.sugarGoal.collectAsState()
+    val isGeneratingMacros by viewModel.isGeneratingMacros.collectAsState()
+    val macroGenerateError by viewModel.macroGenerateError.collectAsState()
+    val geminiReady by viewModel.geminiReady.collectAsState()
 
     var editingGoals by remember { mutableStateOf(false) }
     var editingBody by remember { mutableStateOf(false) }
+    var editingMacros by remember { mutableStateOf(false) }
     var editingNickname by remember { mutableStateOf(false) }
     var showNukeConfirm by remember { mutableStateOf(false) }
     var showDbViewer by remember { mutableStateOf(false) }
@@ -65,20 +72,21 @@ fun SettingsScreen(
     val hcAvailability = HealthConnectClient.getSdkStatus(context)
     val hcInstalled = hcAvailability == HealthConnectClient.SDK_AVAILABLE
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = PermissionController.createRequestPermissionResultContract()
-    ) { granted ->
-        Log.d("FitTrack_HC", "Permission result: granted=$granted")
-        viewModel.onHealthConnectResult(granted)
-    }
+    val permissionLauncher =
+            rememberLauncherForActivityResult(
+                    contract = PermissionController.createRequestPermissionResultContract()
+            ) { granted ->
+                Log.d("FitTrack_HC", "Permission result: granted=$granted")
+                viewModel.onHealthConnectResult(granted)
+            }
 
     ScreenScaffold {
         Text(
-            text = "Settings",
-            fontFamily = interFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = 32.sp,
-            color = AppColors.textPrimary
+                text = "Settings",
+                fontFamily = interFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 32.sp,
+                color = AppColors.textPrimary
         )
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -86,49 +94,73 @@ fun SettingsScreen(
         SectionHeader("Profile")
         Spacer(modifier = Modifier.height(8.dp))
         Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = AppColors.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = AppColors.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             if (editingNickname) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     OutlinedTextField(
-                        value = nickname,
-                        onValueChange = { viewModel.setNickname(it) },
-                        label = { Text("Nickname", fontFamily = interFamily) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                            value = nickname,
+                            onValueChange = { viewModel.setNickname(it) },
+                            label = { Text("Nickname", fontFamily = interFamily) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
-                            onClick = {
-                                viewModel.save()
-                                editingNickname = false
-                                Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.primary)
+                                onClick = {
+                                    viewModel.save()
+                                    editingNickname = false
+                                    Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
+                                },
+                                colors =
+                                        ButtonDefaults.buttonColors(
+                                                containerColor = AppColors.primary
+                                        )
                         ) { Text("Save", fontFamily = interFamily) }
-                        TextButton(onClick = {
-                            viewModel.loadData()
-                            editingNickname = false
-                        }) { Text("Cancel", fontFamily = interFamily, color = AppColors.textSecondary) }
+                        TextButton(
+                                onClick = {
+                                    viewModel.loadData()
+                                    editingNickname = false
+                                }
+                        ) {
+                            Text(
+                                    "Cancel",
+                                    fontFamily = interFamily,
+                                    color = AppColors.textSecondary
+                            )
+                        }
                     }
                 }
             } else {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("Nickname", fontFamily = interFamily, fontSize = 12.sp, color = AppColors.textSecondary)
-                        Text(nickname, fontFamily = interFamily, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = AppColors.textPrimary)
+                        Text(
+                                "Nickname",
+                                fontFamily = interFamily,
+                                fontSize = 12.sp,
+                                color = AppColors.textSecondary
+                        )
+                        Text(
+                                nickname,
+                                fontFamily = interFamily,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 16.sp,
+                                color = AppColors.textPrimary
+                        )
                     }
                     IconButton(onClick = { editingNickname = true }) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = AppColors.textSecondary)
+                        Icon(
+                                Icons.Default.Edit,
+                                contentDescription = "Edit",
+                                tint = AppColors.textSecondary
+                        )
                     }
                 }
             }
@@ -142,98 +174,164 @@ fun SettingsScreen(
         SectionHeader("Data Sources")
         Spacer(modifier = Modifier.height(8.dp))
         Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = AppColors.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = AppColors.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .combinedClickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { },
-                        onLongClick = {
-                            val service = com.fittrack.app.services.HealthConnectService()
-                            val intents = service.getSettingsIntents(context)
-                            for (intent in intents) {
-                                try { context.startActivity(intent); break } catch (_: Exception) {}
-                            }
-                        }
-                    )
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    modifier =
+                            Modifier.fillMaxWidth()
+                                    .combinedClickable(
+                                            interactionSource =
+                                                    remember { MutableInteractionSource() },
+                                            indication = null,
+                                            onClick = {},
+                                            onLongClick = {
+                                                val service =
+                                                        com.fittrack.app.services
+                                                                .HealthConnectService()
+                                                val intents = service.getSettingsIntents(context)
+                                                for (intent in intents) {
+                                                    try {
+                                                        context.startActivity(intent)
+                                                        break
+                                                    } catch (_: Exception) {}
+                                                }
+                                            }
+                                    )
+                                    .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Filled.MonitorHeart,
-                        contentDescription = null,
-                        tint = if (healthConnectGranted) AppColors.success else AppColors.textSecondary,
-                        modifier = Modifier.size(24.dp)
+                            imageVector = Icons.Filled.MonitorHeart,
+                            contentDescription = null,
+                            tint =
+                                    if (healthConnectGranted) AppColors.success
+                                    else AppColors.textSecondary,
+                            modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        Text("Health Connect", fontFamily = interFamily, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = AppColors.textPrimary)
                         Text(
-                            text = if (healthConnectGranted) "Connected — syncing steps & calories" else "Not connected",
-                            fontFamily = interFamily, fontSize = 12.sp,
-                            color = if (healthConnectGranted) AppColors.success else AppColors.textSecondary
+                                "Health Connect",
+                                fontFamily = interFamily,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 15.sp,
+                                color = AppColors.textPrimary
+                        )
+                        Text(
+                                text =
+                                        if (healthConnectGranted)
+                                                "Connected — syncing steps & calories"
+                                        else "Not connected",
+                                fontFamily = interFamily,
+                                fontSize = 12.sp,
+                                color =
+                                        if (healthConnectGranted) AppColors.success
+                                        else AppColors.textSecondary
                         )
                     }
                 }
                 if (!healthConnectGranted) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
-                            onClick = {
-                                Log.d("FitTrack_HC", "Connect button tapped. hcInstalled=$hcInstalled, hcAvailability=$hcAvailability")
-                                if (hcInstalled) {
-                                    val permissions = setOf(
-                                        HealthPermission.getReadPermission(StepsRecord::class),
-                                        HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class)
+                                onClick = {
+                                    Log.d(
+                                            "FitTrack_HC",
+                                            "Connect button tapped. hcInstalled=$hcInstalled, hcAvailability=$hcAvailability"
                                     )
-                                    try { permissionLauncher.launch(permissions) } catch (e: Exception) {
-                                        Log.e("FitTrack_HC", "permissionLauncher.launch threw: ${e.message}", e)
+                                    if (hcInstalled) {
+                                        val permissions =
+                                                setOf(
+                                                        HealthPermission.getReadPermission(
+                                                                StepsRecord::class
+                                                        ),
+                                                        HealthPermission.getReadPermission(
+                                                                ActiveCaloriesBurnedRecord::class
+                                                        )
+                                                )
+                                        try {
+                                            permissionLauncher.launch(permissions)
+                                        } catch (e: Exception) {
+                                            Log.e(
+                                                    "FitTrack_HC",
+                                                    "permissionLauncher.launch threw: ${e.message}",
+                                                    e
+                                            )
+                                        }
+                                    } else {
+                                        val intent =
+                                                Intent(Intent.ACTION_VIEW).apply {
+                                                    data =
+                                                            Uri.parse(
+                                                                    "https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata"
+                                                            )
+                                                    setPackage("com.android.vending")
+                                                }
+                                        runCatching { context.startActivity(intent) }.onFailure {
+                                            Toast.makeText(
+                                                            context,
+                                                            "Health Connect is not available on this device",
+                                                            Toast.LENGTH_LONG
+                                                    )
+                                                    .show()
+                                        }
                                     }
-                                } else {
-                                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                                        data = Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata")
-                                        setPackage("com.android.vending")
-                                    }
-                                    runCatching { context.startActivity(intent) }.onFailure {
-                                        Toast.makeText(context, "Health Connect is not available on this device", Toast.LENGTH_LONG).show()
-                                    }
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.primary),
-                            shape = RoundedCornerShape(20.dp),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
+                                },
+                                colors =
+                                        ButtonDefaults.buttonColors(
+                                                containerColor = AppColors.primary
+                                        ),
+                                shape = RoundedCornerShape(20.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
                         ) {
-                            Text(if (hcInstalled) "Connect" else "Install", fontFamily = interFamily, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = AppColors.textOnPrimary)
+                            Text(
+                                    if (hcInstalled) "Connect" else "Install",
+                                    fontFamily = interFamily,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp,
+                                    color = AppColors.textOnPrimary
+                            )
                         }
                         OutlinedButton(
-                            onClick = {
-                                val service = com.fittrack.app.services.HealthConnectService()
-                                val intents = service.getSettingsIntents(context)
-                                var launched = false
-                                for (intent in intents) {
-                                    try {
-                                        Log.d("FitTrack_HC", "Trying settings action: ${intent.action}")
-                                        context.startActivity(intent)
-                                        launched = true
-                                        break
-                                    } catch (e: Exception) {
-                                        Log.w("FitTrack_HC", "Failed: ${e.message}")
+                                onClick = {
+                                    val service = com.fittrack.app.services.HealthConnectService()
+                                    val intents = service.getSettingsIntents(context)
+                                    var launched = false
+                                    for (intent in intents) {
+                                        try {
+                                            Log.d(
+                                                    "FitTrack_HC",
+                                                    "Trying settings action: ${intent.action}"
+                                            )
+                                            context.startActivity(intent)
+                                            launched = true
+                                            break
+                                        } catch (e: Exception) {
+                                            Log.w("FitTrack_HC", "Failed: ${e.message}")
+                                        }
                                     }
-                                }
-                                if (!launched) Toast.makeText(context, "Could not open settings", Toast.LENGTH_SHORT).show()
-                            },
-                            shape = RoundedCornerShape(20.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                    if (!launched)
+                                            Toast.makeText(
+                                                            context,
+                                                            "Could not open settings",
+                                                            Toast.LENGTH_SHORT
+                                                    )
+                                                    .show()
+                                },
+                                shape = RoundedCornerShape(20.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                         ) { Text("Settings", fontFamily = interFamily, fontSize = 13.sp) }
                     }
                 } else {
-                    Icon(Icons.Filled.CheckCircle, contentDescription = "Connected", tint = AppColors.success, modifier = Modifier.size(24.dp))
+                    Icon(
+                            Icons.Filled.CheckCircle,
+                            contentDescription = "Connected",
+                            tint = AppColors.success,
+                            modifier = Modifier.size(24.dp)
+                    )
                 }
             }
         }
@@ -244,58 +342,77 @@ fun SettingsScreen(
 
         // ── Daily Goals (collapsed / edit) ──
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
         ) {
             SectionHeader("Daily Goals")
             if (!editingGoals) {
                 IconButton(onClick = { editingGoals = true }) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = AppColors.textSecondary)
+                    Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Edit",
+                            tint = AppColors.textSecondary
+                    )
                 }
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
         Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = AppColors.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = AppColors.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             if (editingGoals) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     OutlinedTextField(
-                        value = calorieGoal,
-                        onValueChange = { viewModel.setCalorieGoal(it) },
-                        label = { Text("Calorie Goal", fontFamily = interFamily) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        supportingText = { Text("Recommended: 1,500 – 3,000", fontFamily = interFamily) }
+                            value = calorieGoal,
+                            onValueChange = { viewModel.setCalorieGoal(it) },
+                            label = { Text("Calorie Goal", fontFamily = interFamily) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            supportingText = {
+                                Text("Recommended: 1,500 – 3,000", fontFamily = interFamily)
+                            }
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
-                        value = stepGoal,
-                        onValueChange = { viewModel.setStepGoal(it) },
-                        label = { Text("Step Goal", fontFamily = interFamily) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        supportingText = { Text("Recommended: 8,000 – 12,000", fontFamily = interFamily) }
+                            value = stepGoal,
+                            onValueChange = { viewModel.setStepGoal(it) },
+                            label = { Text("Step Goal", fontFamily = interFamily) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            supportingText = {
+                                Text("Recommended: 8,000 – 12,000", fontFamily = interFamily)
+                            }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
-                            onClick = {
-                                viewModel.save()
-                                editingGoals = false
-                                Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.primary)
+                                onClick = {
+                                    viewModel.save()
+                                    editingGoals = false
+                                    Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
+                                },
+                                colors =
+                                        ButtonDefaults.buttonColors(
+                                                containerColor = AppColors.primary
+                                        )
                         ) { Text("Save", fontFamily = interFamily) }
-                        TextButton(onClick = {
-                            viewModel.loadData()
-                            editingGoals = false
-                        }) { Text("Cancel", fontFamily = interFamily, color = AppColors.textSecondary) }
+                        TextButton(
+                                onClick = {
+                                    viewModel.loadData()
+                                    editingGoals = false
+                                }
+                        ) {
+                            Text(
+                                    "Cancel",
+                                    fontFamily = interFamily,
+                                    color = AppColors.textSecondary
+                            )
+                        }
                     }
                 }
             } else {
@@ -313,78 +430,138 @@ fun SettingsScreen(
 
         // ── Body Measurements (collapsed / edit) ──
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
                 SectionHeader("Body Measurements")
-                Text("Used to estimate calories burned from steps", fontFamily = interFamily, fontSize = 13.sp, color = AppColors.textSecondary)
+                Text(
+                        "Used to estimate calories burned from steps",
+                        fontFamily = interFamily,
+                        fontSize = 13.sp,
+                        color = AppColors.textSecondary
+                )
             }
             if (!editingBody) {
                 IconButton(onClick = { editingBody = true }) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = AppColors.textSecondary)
+                    Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Edit",
+                            tint = AppColors.textSecondary
+                    )
                 }
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
         Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = AppColors.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = AppColors.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             if (editingBody) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     OutlinedTextField(
-                        value = weightLbs,
-                        onValueChange = { viewModel.setWeightLbs(it) },
-                        label = { Text("Weight", fontFamily = interFamily) },
-                        suffix = { Text("lbs", fontFamily = interFamily, color = AppColors.textSecondary) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                            value = weightLbs,
+                            onValueChange = { viewModel.setWeightLbs(it) },
+                            label = { Text("Weight", fontFamily = interFamily) },
+                            suffix = {
+                                Text(
+                                        "lbs",
+                                        fontFamily = interFamily,
+                                        color = AppColors.textSecondary
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text("Height", fontFamily = interFamily, fontSize = 14.sp, color = AppColors.textSecondary)
+                    Text(
+                            "Height",
+                            fontFamily = interFamily,
+                            fontSize = 14.sp,
+                            color = AppColors.textSecondary
+                    )
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedTextField(
-                            value = heightFt,
-                            onValueChange = { viewModel.setHeightFt(it) },
-                            label = { Text("Feet", fontFamily = interFamily) },
-                            suffix = { Text("ft", fontFamily = interFamily, color = AppColors.textSecondary) },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                                value = heightFt,
+                                onValueChange = { viewModel.setHeightFt(it) },
+                                label = { Text("Feet", fontFamily = interFamily) },
+                                suffix = {
+                                    Text(
+                                            "ft",
+                                            fontFamily = interFamily,
+                                            color = AppColors.textSecondary
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                keyboardOptions =
+                                        KeyboardOptions(keyboardType = KeyboardType.Number)
                         )
                         OutlinedTextField(
-                            value = heightIn,
-                            onValueChange = { viewModel.setHeightIn(it) },
-                            label = { Text("Inches", fontFamily = interFamily) },
-                            suffix = { Text("in", fontFamily = interFamily, color = AppColors.textSecondary) },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                                value = heightIn,
+                                onValueChange = { viewModel.setHeightIn(it) },
+                                label = { Text("Inches", fontFamily = interFamily) },
+                                suffix = {
+                                    Text(
+                                            "in",
+                                            fontFamily = interFamily,
+                                            color = AppColors.textSecondary
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                keyboardOptions =
+                                        KeyboardOptions(keyboardType = KeyboardType.Number)
                         )
                     }
                     Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                            value = age,
+                            onValueChange = { viewModel.setAge(it) },
+                            label = { Text("Age", fontFamily = interFamily) },
+                            suffix = {
+                                Text(
+                                        "yrs",
+                                        fontFamily = interFamily,
+                                        color = AppColors.textSecondary
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
-                            onClick = {
-                                viewModel.save()
-                                editingBody = false
-                                Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.primary)
+                                onClick = {
+                                    viewModel.save()
+                                    editingBody = false
+                                },
+                                colors =
+                                        ButtonDefaults.buttonColors(
+                                                containerColor = AppColors.primary
+                                        )
                         ) { Text("Save", fontFamily = interFamily) }
-                        TextButton(onClick = {
-                            viewModel.loadData()
-                            editingBody = false
-                        }) { Text("Cancel", fontFamily = interFamily, color = AppColors.textSecondary) }
+                        TextButton(
+                                onClick = {
+                                    viewModel.loadData()
+                                    editingBody = false
+                                }
+                        ) {
+                            Text(
+                                    "Cancel",
+                                    fontFamily = interFamily,
+                                    color = AppColors.textSecondary
+                            )
+                        }
                     }
                 }
             } else {
@@ -392,6 +569,208 @@ fun SettingsScreen(
                     SettingsRow("Weight", "$weightLbs lbs")
                     Spacer(modifier = Modifier.height(12.dp))
                     SettingsRow("Height", "${heightFt}' ${heightIn}\"")
+                    Spacer(modifier = Modifier.height(12.dp))
+                    SettingsRow("Age", "$age yrs")
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider(color = AppColors.border)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // ── Daily Macro Goals ──
+        Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                SectionHeader("Macro Goals")
+                Text(
+                        "Daily targets in grams — used for progress bars",
+                        fontFamily = interFamily,
+                        fontSize = 13.sp,
+                        color = AppColors.textSecondary
+                )
+            }
+            if (!editingMacros) {
+                IconButton(onClick = { editingMacros = true }) {
+                    Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Edit",
+                            tint = AppColors.textSecondary
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = AppColors.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                if (geminiReady) {
+                    Button(
+                            onClick = { viewModel.generateAiMacroGoals() },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isGeneratingMacros,
+                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.primary)
+                    ) {
+                        if (isGeneratingMacros) {
+                            CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = AppColors.textOnPrimary,
+                                    strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Generating…", fontFamily = interFamily)
+                        } else {
+                            Text(
+                                    "✦ Generate with AI",
+                                    fontFamily = interFamily,
+                                    fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                    macroGenerateError?.let {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                                it,
+                                fontFamily = interFamily,
+                                fontSize = 12.sp,
+                                color = AppColors.error
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+                if (editingMacros) {
+                    Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                                value = proteinGoal,
+                                onValueChange = { viewModel.setProteinGoal(it) },
+                                label = { Text("Protein", fontFamily = interFamily) },
+                                suffix = {
+                                    Text(
+                                            "g",
+                                            fontFamily = interFamily,
+                                            color = AppColors.textSecondary
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                keyboardOptions =
+                                        KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+                        OutlinedTextField(
+                                value = carbsGoal,
+                                onValueChange = { viewModel.setCarbsGoal(it) },
+                                label = { Text("Carbs", fontFamily = interFamily) },
+                                suffix = {
+                                    Text(
+                                            "g",
+                                            fontFamily = interFamily,
+                                            color = AppColors.textSecondary
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                keyboardOptions =
+                                        KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                                value = fatGoal,
+                                onValueChange = { viewModel.setFatGoal(it) },
+                                label = { Text("Fat", fontFamily = interFamily) },
+                                suffix = {
+                                    Text(
+                                            "g",
+                                            fontFamily = interFamily,
+                                            color = AppColors.textSecondary
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                keyboardOptions =
+                                        KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+                        OutlinedTextField(
+                                value = sugarGoal,
+                                onValueChange = { viewModel.setSugarGoal(it) },
+                                label = { Text("Sugar", fontFamily = interFamily) },
+                                suffix = {
+                                    Text(
+                                            "g",
+                                            fontFamily = interFamily,
+                                            color = AppColors.textSecondary
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                keyboardOptions =
+                                        KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                                onClick = {
+                                    viewModel.saveMacroGoals()
+                                    editingMacros = false
+                                },
+                                colors =
+                                        ButtonDefaults.buttonColors(
+                                                containerColor = AppColors.primary
+                                        )
+                        ) { Text("Save", fontFamily = interFamily) }
+                        TextButton(
+                                onClick = {
+                                    viewModel.loadData()
+                                    editingMacros = false
+                                }
+                        ) {
+                            Text(
+                                    "Cancel",
+                                    fontFamily = interFamily,
+                                    color = AppColors.textSecondary
+                            )
+                        }
+                    }
+                } else {
+                    Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        MacroGoalChip(
+                                "Protein",
+                                proteinGoal,
+                                AppColors.protein,
+                                modifier = Modifier.weight(1f)
+                        )
+                        MacroGoalChip(
+                                "Carbs",
+                                carbsGoal,
+                                AppColors.carbs,
+                                modifier = Modifier.weight(1f)
+                        )
+                        MacroGoalChip("Fat", fatGoal, AppColors.fat, modifier = Modifier.weight(1f))
+                        MacroGoalChip(
+                                "Sugar",
+                                sugarGoal,
+                                AppColors.sugar,
+                                modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
         }
@@ -404,29 +783,34 @@ fun SettingsScreen(
         SectionHeader("Reset")
         Spacer(modifier = Modifier.height(8.dp))
         Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = AppColors.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = AppColors.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    "Clear all data and start over. This removes food logs, step history, goals, and settings.",
-                    fontFamily = interFamily,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = AppColors.textSecondary
+                        "Clear all data and start over. This removes food logs, step history, goals, and settings.",
+                        fontFamily = interFamily,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AppColors.textSecondary
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
-                    onClick = { showNukeConfirm = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = AppColors.error,
-                        contentColor = AppColors.textOnPrimary
-                    )
+                        onClick = { showNukeConfirm = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors =
+                                ButtonDefaults.buttonColors(
+                                        containerColor = AppColors.error,
+                                        contentColor = AppColors.textOnPrimary
+                                )
                 ) {
                     Icon(Icons.Default.DeleteForever, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Reset & Start Fresh", fontFamily = interFamily, fontWeight = FontWeight.SemiBold)
+                    Text(
+                            "Reset & Start Fresh",
+                            fontFamily = interFamily,
+                            fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
         }
@@ -439,17 +823,20 @@ fun SettingsScreen(
         SectionHeader("Developer Settings")
         Spacer(modifier = Modifier.height(8.dp))
         Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = AppColors.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = AppColors.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 OutlinedButton(
-                    onClick = {
-                        dbEntries = viewModel.getDbOverview()
-                        showDbViewer = true
-                    },
-                    modifier = Modifier.fillMaxWidth()
+                        onClick = {
+                            dbEntries = viewModel.getDbOverview()
+                            showDbViewer = true
+                        },
+                        modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(Icons.Default.TableChart, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
@@ -465,70 +852,118 @@ fun SettingsScreen(
 
     if (showNukeConfirm) {
         AlertDialog(
-            onDismissRequest = { showNukeConfirm = false },
-            title = { Text("Reset Everything?", fontFamily = interFamily, fontWeight = FontWeight.Bold) },
-            text = { Text("This will permanently delete all food logs, step history, custom foods, goals, and settings. The app will restart fresh with onboarding. This cannot be undone.", fontFamily = interFamily) },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.nukeDb()
-                        showNukeConfirm = false
-                        Toast.makeText(context, "All data cleared — restart the app", Toast.LENGTH_LONG).show()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.error)
-                ) { Text("Reset", fontFamily = interFamily) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showNukeConfirm = false }) { Text("Cancel", fontFamily = interFamily) }
-            }
+                onDismissRequest = { showNukeConfirm = false },
+                title = {
+                    Text(
+                            "Reset Everything?",
+                            fontFamily = interFamily,
+                            fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Text(
+                            "This will permanently delete all food logs, step history, custom foods, goals, and settings. The app will restart fresh with onboarding. This cannot be undone.",
+                            fontFamily = interFamily
+                    )
+                },
+                confirmButton = {
+                    Button(
+                            onClick = {
+                                viewModel.nukeDb()
+                                showNukeConfirm = false
+                                Toast.makeText(
+                                                context,
+                                                "All data cleared — restart the app",
+                                                Toast.LENGTH_LONG
+                                        )
+                                        .show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.error)
+                    ) { Text("Reset", fontFamily = interFamily) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showNukeConfirm = false }) {
+                        Text("Cancel", fontFamily = interFamily)
+                    }
+                }
         )
     }
 
     if (showDbViewer) {
         androidx.compose.ui.window.Dialog(onDismissRequest = { showDbViewer = false }) {
             Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight(0.85f),
-                shape = RoundedCornerShape(16.dp),
-                color = AppColors.surface
+                    modifier = Modifier.fillMaxWidth().fillMaxHeight(0.85f),
+                    shape = RoundedCornerShape(16.dp),
+                    color = AppColors.surface
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Database Explorer", fontFamily = interFamily, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Text(
+                            "Database Explorer",
+                            fontFamily = interFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp
+                    )
                     Spacer(modifier = Modifier.height(16.dp))
                     LazyColumn(modifier = Modifier.weight(1f)) {
                         val grouped = dbEntries.groupBy { it.table }
                         grouped.forEach { (table, entries) ->
                             item {
                                 Surface(
-                                    color = AppColors.primary.copy(alpha = 0.1f),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 16.dp, bottom = 4.dp),
-                                    shape = RoundedCornerShape(4.dp)
+                                        color = AppColors.primary.copy(alpha = 0.1f),
+                                        modifier =
+                                                Modifier.fillMaxWidth()
+                                                        .padding(top = 16.dp, bottom = 4.dp),
+                                        shape = RoundedCornerShape(4.dp)
                                 ) {
                                     Text(
-                                        text = table.uppercase(),
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                        fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                                        color = AppColors.primary, letterSpacing = 1.sp
+                                            text = table.uppercase(),
+                                            modifier =
+                                                    Modifier.padding(
+                                                            horizontal = 8.dp,
+                                                            vertical = 4.dp
+                                                    ),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = AppColors.primary,
+                                            letterSpacing = 1.sp
                                     )
                                 }
                             }
                             items(entries) { entry ->
                                 Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .combinedClickable(
-                                            onClick = { },
-                                            onLongClick = { if (entry.key != "(empty)") selectedEntry = entry }
-                                        )
-                                        .padding(vertical = 10.dp)
+                                        modifier =
+                                                Modifier.fillMaxWidth()
+                                                        .combinedClickable(
+                                                                onClick = {},
+                                                                onLongClick = {
+                                                                    if (entry.key != "(empty)")
+                                                                            selectedEntry = entry
+                                                                }
+                                                        )
+                                                        .padding(vertical = 10.dp)
                                 ) {
-                                    Text(entry.key, fontFamily = interFamily, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
-                                        color = if (entry.key == "(empty)") AppColors.textSecondary else AppColors.textPrimary)
-                                    Text(entry.value, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 12.sp,
-                                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, color = AppColors.textSecondary)
+                                    Text(
+                                            entry.key,
+                                            fontFamily = interFamily,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 14.sp,
+                                            color =
+                                                    if (entry.key == "(empty)")
+                                                            AppColors.textSecondary
+                                                    else AppColors.textPrimary
+                                    )
+                                    Text(
+                                            entry.value,
+                                            fontFamily =
+                                                    androidx.compose.ui.text.font.FontFamily
+                                                            .Monospace,
+                                            fontSize = 12.sp,
+                                            maxLines = 1,
+                                            overflow =
+                                                    androidx.compose.ui.text.style.TextOverflow
+                                                            .Ellipsis,
+                                            color = AppColors.textSecondary
+                                    )
                                 }
                                 HorizontalDivider(color = AppColors.border.copy(alpha = 0.5f))
                             }
@@ -545,26 +980,46 @@ fun SettingsScreen(
 
     if (selectedEntry != null) {
         AlertDialog(
-            onDismissRequest = { selectedEntry = null },
-            title = { Text("Record Details", fontFamily = interFamily, fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    Text("Table: ${selectedEntry!!.table}", fontSize = 12.sp, color = AppColors.textSecondary)
-                    Text("Key: ${selectedEntry!!.key}", fontSize = 12.sp, color = AppColors.textSecondary, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color.Black.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
-                            .padding(12.dp)
-                    ) {
-                        Text(selectedEntry!!.value, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 12.sp)
+                onDismissRequest = { selectedEntry = null },
+                title = {
+                    Text("Record Details", fontFamily = interFamily, fontWeight = FontWeight.Bold)
+                },
+                text = {
+                    Column {
+                        Text(
+                                "Table: ${selectedEntry!!.table}",
+                                fontSize = 12.sp,
+                                color = AppColors.textSecondary
+                        )
+                        Text(
+                                "Key: ${selectedEntry!!.key}",
+                                fontSize = 12.sp,
+                                color = AppColors.textSecondary,
+                                fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Box(
+                                modifier =
+                                        Modifier.fillMaxWidth()
+                                                .background(
+                                                        Color.Black.copy(alpha = 0.05f),
+                                                        RoundedCornerShape(8.dp)
+                                                )
+                                                .padding(12.dp)
+                        ) {
+                            Text(
+                                    selectedEntry!!.value,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                    fontSize = 12.sp
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { selectedEntry = null }) {
+                        Text("Done", fontFamily = interFamily)
                     }
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { selectedEntry = null }) { Text("Done", fontFamily = interFamily) }
-            }
         )
     }
 }
@@ -572,21 +1027,54 @@ fun SettingsScreen(
 @Composable
 private fun SectionHeader(title: String) {
     Text(
-        text = title,
-        fontFamily = interFamily,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 18.sp,
-        color = AppColors.textPrimary
+            text = title,
+            fontFamily = interFamily,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 18.sp,
+            color = AppColors.textPrimary
     )
 }
 
 @Composable
 private fun SettingsRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, fontFamily = interFamily, fontSize = 14.sp, color = AppColors.textSecondary)
-        Text(value, fontFamily = interFamily, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = AppColors.textPrimary)
+        Text(
+                value,
+                fontFamily = interFamily,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp,
+                color = AppColors.textPrimary
+        )
+    }
+}
+
+@Composable
+private fun MacroGoalChip(
+        label: String,
+        grams: String,
+        color: androidx.compose.ui.graphics.Color,
+        modifier: Modifier = Modifier
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
+        Box(
+                modifier =
+                        Modifier.background(
+                                        color.copy(alpha = 0.15f),
+                                        androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center
+        ) {
+            Text(
+                    text = "${grams}g",
+                    fontFamily = interFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = color
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(label, fontFamily = interFamily, fontSize = 11.sp, color = AppColors.textSecondary)
     }
 }

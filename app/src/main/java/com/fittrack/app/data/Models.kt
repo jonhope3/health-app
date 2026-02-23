@@ -15,6 +15,7 @@ data class DiaryItem(
     val protein: Float,
     val carbs: Float,
     val fat: Float,
+    val sugar: Float = 0f,
     val timestamp: Long,
     val quantity: String? = null,
     val mealType: MealType = MealType.OTHER,
@@ -28,6 +29,7 @@ data class NutritionResult(
     val protein: Float,
     val carbs: Float,
     val fat: Float,
+    val sugar: Float = 0f,
     val servingDescription: String? = null,
     val confidence: Float? = null
 )
@@ -39,6 +41,7 @@ data class FoodItem(
     val protein: Float,
     val carbs: Float,
     val fat: Float,
+    val sugar: Float = 0f,
     val servingDescription: String? = null,
     val usageCount: Int,
     val lastUsed: Long,
@@ -53,6 +56,7 @@ data class ParsedFoodItem(
     val protein: Float,
     val carbs: Float,
     val fat: Float,
+    val sugar: Float = 0f,
     val quantity: String = "1 serving",
     val confidence: Float? = null
 )

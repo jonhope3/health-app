@@ -57,7 +57,8 @@ class StepsViewModel(application: Application) : AndroidViewModel(application) {
     val addMode: StateFlow<String> = _addMode.asStateFlow()
 
     private val _needsHealthConnectPermissions = MutableStateFlow(false)
-    val needsHealthConnectPermissions: StateFlow<Boolean> = _needsHealthConnectPermissions.asStateFlow()
+    val needsHealthConnectPermissions: StateFlow<Boolean> =
+            _needsHealthConnectPermissions.asStateFlow()
 
     private val _goalText = MutableStateFlow("")
     val goalText: StateFlow<String> = _goalText.asStateFlow()
@@ -70,12 +71,13 @@ class StepsViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun startPolling() {
         pollingJob?.cancel()
-        pollingJob = viewModelScope.launch {
-            while (true) {
-                loadData()
-                kotlinx.coroutines.delay(30000) // Poll every 30 seconds
-            }
-        }
+        pollingJob =
+                viewModelScope.launch {
+                    while (true) {
+                        loadData()
+                        kotlinx.coroutines.delay(30000) // Poll every 30 seconds
+                    }
+                }
     }
 
     val distance: Float
@@ -99,11 +101,10 @@ class StepsViewModel(application: Application) : AndroidViewModel(application) {
                         if (initialized) {
                             val stepsToday = healthConnectService.readStepsToday()
                             val history = healthConnectService.readStepsHistory(7)
-                            val burned = healthConnectService.readCaloriesBurnedToday()
 
                             _steps.update { stepsToday }
                             _stepsHistory.update { history }
-                            _caloriesBurned.update { burned }
+                            _caloriesBurned.update { caloriesBurnedEstimate(stepsToday) }
                             _stepSource.update { "health_connect" }
                             _needsHealthConnectPermissions.value = false
 
@@ -135,17 +136,18 @@ class StepsViewModel(application: Application) : AndroidViewModel(application) {
                             _steps.update { pedometerSteps }
                             stepsRepository.saveSteps(pedometerSteps, today)
                             val repoHistory = stepsRepository.getStepsHistory(7)
-                            val mergedHistory = if (repoHistory.isNotEmpty()) {
-                                listOf(today to pedometerSteps) + repoHistory.drop(1)
-                            } else {
-                                listOf(today to pedometerSteps)
-                            }
+                            val mergedHistory =
+                                    if (repoHistory.isNotEmpty()) {
+                                        listOf(today to pedometerSteps) + repoHistory.drop(1)
+                                    } else {
+                                        listOf(today to pedometerSteps)
+                                    }
                             _stepsHistory.update { mergedHistory }
                             _caloriesBurned.update { caloriesBurnedEstimate() }
                             _stepSource.update { "pedometer" }
                             loaded = true
                         }
-                    } catch (_: Exception) { }
+                    } catch (_: Exception) {}
                 }
 
                 // 3. Fallback to manual
@@ -210,14 +212,10 @@ class StepsViewModel(application: Application) : AndroidViewModel(application) {
         _showGoalDialog.update { false }
     }
 
-    fun caloriesBurnedEstimate(): Int {
-        return if (_stepSource.value == "health_connect") {
-            _caloriesBurned.value
-        } else {
-            val weightLbs = goalsRepository.getWeightLbs()
-            val calPerStep = 0.04 * (weightLbs / 150.0)
-            (_steps.value * calPerStep).toInt()
-        }
+    fun caloriesBurnedEstimate(steps: Int = _steps.value): Int {
+        val weightLbs = goalsRepository.getWeightLbs()
+        val calPerStep = 0.04 * (weightLbs / 150.0)
+        return (steps * calPerStep).toInt()
     }
 
     fun showAddDialog() {
