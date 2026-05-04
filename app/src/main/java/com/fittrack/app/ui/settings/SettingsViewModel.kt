@@ -167,7 +167,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             _macroGenerateError.value = null
             try {
                 if (!geminiNanoService.initIfNeeded()) {
-                    _macroGenerateError.value = "Gemini Nano not available — set goals manually"
+                    _macroGenerateError.value = "On-device AI not available — set goals manually"
                     _isGeneratingMacros.value = false
                     return@launch
                 }
@@ -179,20 +179,20 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 val totalIn = heightFt * 12 + heightIn
                 val age = _age.value.toIntOrNull() ?: goalsRepository.getAge()
 
-                val prompt = """You are a registered dietitian. Based on the following user profile, recommend daily macro intake goals.
+                val prompt = """<instruction>
+You are a registered dietitian. Recommend daily macro intake goals for this user. Return ONLY a JSON object with integer values in grams: protein, carbs, fat, sugar. Base recommendations on standard nutrition guidelines (Dietary Guidelines for Americans, ISSN protein recommendations). Return ONLY the JSON object, no other text.
+</instruction>
 
-User: age=$age years, weight=${weightLbs.toInt()} lbs, height=${totalIn}in, daily calorie goal=$cals kcal.
+<user_profile>
+Age: $age years
+Weight: ${weightLbs.toInt()} lbs
+Height: ${totalIn} inches
+Daily calorie goal: $cals kcal
+</user_profile>
 
-Return ONLY a JSON object with these fields (all integers, in grams):
-- protein: recommended daily protein in grams
-- carbs: recommended daily carbs in grams  
-- fat: recommended daily fat in grams
-- sugar: recommended daily added sugar limit in grams
-
-Base on standard nutrition guidelines (e.g. Dietary Guidelines for Americans, ISSN protein recommendations).
-Example: {"protein":120,"carbs":225,"fat":65,"sugar":50}
-
-Return ONLY the JSON object, no other text."""
+<example_output>
+{"protein":120,"carbs":225,"fat":65,"sugar":50}
+</example_output>"""
 
                 val response = geminiNanoService.generateContent(prompt)
                 if (response.isBlank()) {
@@ -212,10 +212,10 @@ Return ONLY the JSON object, no other text."""
                     return@launch
                 }
 
-                obj["protein"]?.jsonPrimitive?.content?.toIntOrNull()?.let { _proteinGoal.value = it.toString() }
-                obj["carbs"]?.jsonPrimitive?.content?.toIntOrNull()?.let { _carbsGoal.value = it.toString() }
-                obj["fat"]?.jsonPrimitive?.content?.toIntOrNull()?.let { _fatGoal.value = it.toString() }
-                obj["sugar"]?.jsonPrimitive?.content?.toIntOrNull()?.let { _sugarGoal.value = it.toString() }
+                obj["protein"]?.jsonPrimitive?.content?.toDoubleOrNull()?.toInt()?.let { _proteinGoal.value = it.toString() }
+                obj["carbs"]?.jsonPrimitive?.content?.toDoubleOrNull()?.toInt()?.let { _carbsGoal.value = it.toString() }
+                obj["fat"]?.jsonPrimitive?.content?.toDoubleOrNull()?.toInt()?.let { _fatGoal.value = it.toString() }
+                obj["sugar"]?.jsonPrimitive?.content?.toDoubleOrNull()?.toInt()?.let { _sugarGoal.value = it.toString() }
 
                 // Auto-save immediately after generation
                 saveMacroGoals()

@@ -17,15 +17,20 @@ class CoachTipUseCase(
         private val geminiNanoService: GeminiNanoService,
         private val random: Random = Random.Default
 ) {
-    private val selectedTone =
-            listOf(
-                            "an energetic cheerleader",
-                            "a wise, calm fitness guru",
-                            "a friendly teammate",
-                            "a knowledgeable nutritionist",
-                            "a motivating sports coach"
-                    )
-                    .random(random)
+    private fun selectTone(data: CoachPromptData): String {
+        val calRatio = data.caloriesEaten.toFloat() / data.calorieGoal.coerceAtLeast(1)
+        val stepRatio = data.steps.toFloat() / data.stepGoal.coerceAtLeast(1)
+        val noData = data.caloriesEaten == 0 && data.steps == 0
+
+        return when {
+            noData -> "a friendly, encouraging teammate"
+            calRatio > 1.15f -> "a supportive, non-judgmental nutritionist"
+            stepRatio >= 1f && calRatio in 0.8f..1.05f -> "an excited cheerleader celebrating their success"
+            data.now.hour >= 18 && calRatio < 0.5f -> "a caring nutritionist concerned about under-eating"
+            stepRatio < 0.3f && data.now.hour >= 15 -> "a motivating sports coach"
+            else -> "a knowledgeable, encouraging fitness coach"
+        }
+    }
 
     suspend fun getCoachTip(data: CoachPromptData): String =
             withContext(Dispatchers.IO) {
@@ -57,7 +62,7 @@ class CoachTipUseCase(
                                     if (stepsHistory.isNotEmpty()) stepsHistory.average().toInt()
                                     else promptData.steps
 
-                            "\nContext on their week so far:\n- Average Daily Calories: $avgCal\n- Average Daily Steps: $avgSteps\n"
+                            "\n7-day averages: ~${avgCal} cal/day, ~${avgSteps} steps/day\n"
                         } else null
 
                 val prompt = buildCoachPrompt(promptData, weeklySummary)
@@ -75,17 +80,17 @@ class CoachTipUseCase(
                             if (!cleaned.contains("**")) {
                                 Log.w(
                                         "FitTrack_Coach",
-                                        "Gemini response missing bold markers: $cleaned"
+                                        "AI response missing bold markers: $cleaned"
                                 )
                             }
-                            Log.d("FitTrack_Coach", "Gemini Nano tip: $cleaned")
+                            Log.d("FitTrack_Coach", "AI coach tip: $cleaned")
                             return@withContext cleaned
                         }
                     }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    Log.w("FitTrack_Coach", "Gemini Nano failed, using fallback: ${e.message}", e)
+                    Log.w("FitTrack_Coach", "AI coach failed, using fallback: ${e.message}", e)
                 }
 
                 return@withContext fallbackCoachTip(promptData)
@@ -100,39 +105,51 @@ class CoachTipUseCase(
                 }
         val formatter = DateTimeFormatter.ofPattern("h:mm a", Locale.US)
         val exactTime = data.now.format(formatter)
+        val tone = selectTone(data)
 
         return buildString {
-            append("You are $selectedTone. ")
-            append("The user's name is ${data.nickname}. It is currently $exactTime ($timeOfDay). ")
-            append("Here is their data for today:\n")
-            append("- Calories eaten: ${data.caloriesEaten} of ${data.calorieGoal} cal goal\n")
-            append(
-                    "- Protein: ${data.protein.toInt()}g, Carbs: ${data.carbs.toInt()}g, Fat: ${data.fat.toInt()}g, Sugar: ${data.sugar.toInt()}g of ${data.sugarGoal}g goal\n"
-            )
-            append("- Steps: ${data.steps} of ${data.stepGoal} step goal\n")
+            append("<instruction>\n")
+            append("You are $tone. ")
+            append("Give a short, personalized health coach tip (2-3 sentences max). ")
+            append("Be specific to their actual numbers and progress toward goals. ")
+            append("Bold the 1-3 most important short phrases by wrapping them in **double asterisks**. ")
+            append("Do NOT use emojis. Do NOT wrap in quotes. Use only one space after periods.\n")
+            append("</instruction>\n\n")
+
+            append("<user_data>\n")
+            append("Name: ${data.nickname}\n")
+            append("Time: $exactTime ($timeOfDay)\n")
+            append("Calories: ${data.caloriesEaten} eaten / ${data.calorieGoal} goal\n")
+            append("Protein: ${data.protein.toInt()}g / ${data.proteinGoal}g goal\n")
+            append("Carbs: ${data.carbs.toInt()}g / ${data.carbsGoal}g goal\n")
+            append("Fat: ${data.fat.toInt()}g / ${data.fatGoal}g goal\n")
+            append("Sugar: ${data.sugar.toInt()}g / ${data.sugarGoal}g limit\n")
+            append("Steps: ${data.steps} / ${data.stepGoal} goal\n")
             weeklySummary?.let { append(it) }
-            append("\n")
 
             if (data.caloriesEaten <= 0) {
-                append("They have NOT logged any food yet today. ")
+                append("NOTE: No food logged yet today.\n")
             }
             if (data.steps == 0) {
-                append("They have NOT logged any steps yet today. ")
+                append("NOTE: No steps recorded yet today.\n")
             }
+            append("</user_data>\n\n")
 
-            append("\nGive a short, encouraging coach tip (2-3 sentences max). ")
-            append("Be specific to their actual numbers. ")
-            append(
-                    "If they haven't logged food or steps, gently suggest they consider adding them. "
-            )
-            append("If they're over their calorie goal, be supportive not judgmental. ")
-            append(
-                    "If macros are imbalanced (e.g. very high fat, very low protein), give a gentle suggestion. "
-            )
-            append("Do NOT use emojis. Use only one space after periods. ")
-            append(
-                    "Bold the 1-3 most important short phrases (1-8 words each) by wrapping them in **double asterisks**."
-            )
+            append("<guidelines>\n")
+            if (data.caloriesEaten <= 0) {
+                append("- Gently suggest they log their food.\n")
+            }
+            if (data.caloriesEaten > data.calorieGoal) {
+                append("- Be supportive, not judgmental about being over the calorie goal.\n")
+            }
+            val proteinRatio = if (data.proteinGoal > 0) data.protein / data.proteinGoal else 1f
+            if (proteinRatio < 0.3f && data.caloriesEaten > 0) {
+                append("- Protein intake is low relative to goal. Suggest protein-rich foods.\n")
+            }
+            if (data.sugar > data.sugarGoal && data.sugarGoal > 0) {
+                append("- Sugar intake exceeds their daily limit. Mention this gently.\n")
+            }
+            append("</guidelines>")
         }
     }
 

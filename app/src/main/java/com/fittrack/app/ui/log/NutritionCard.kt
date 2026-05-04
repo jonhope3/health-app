@@ -90,9 +90,7 @@ fun NutritionCard(
     val scaledFat = result.fat * factor
     val scaledSugar = result.sugar * factor
 
-    val showInput = result.servingDescription?.contains("100g", ignoreCase = true) == true
-            || result.servingDescription?.contains("serving", ignoreCase = true) == true
-            || result.servingDescription != null
+    val showInput = result.servingDescription != null
 
     val confidenceColor = if (isAiEstimated) {
         when {

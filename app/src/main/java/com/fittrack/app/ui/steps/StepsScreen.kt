@@ -299,11 +299,20 @@ fun StepsScreen(viewModel: StepsViewModel = viewModel()) {
                                         OutlinedTextField(
                                                 value = addStepsText,
                                                 onValueChange = {
-                                                        viewModel.updateAddStepsText(it)
+                                                        viewModel.updateAddStepsText(
+                                                                it.filter { c -> c.isDigit() }
+                                                        )
                                                 },
                                                 label = { Text("Steps", fontFamily = interFamily) },
                                                 modifier = Modifier.fillMaxWidth(),
-                                                singleLine = true
+                                                singleLine = true,
+                                                keyboardOptions =
+                                                        androidx.compose.foundation.text.KeyboardOptions(
+                                                                keyboardType =
+                                                                        androidx.compose.ui.text.input
+                                                                                .KeyboardType
+                                                                                .Number
+                                                        )
                                         )
                                         Spacer(modifier = Modifier.height(16.dp))
                                         Row(

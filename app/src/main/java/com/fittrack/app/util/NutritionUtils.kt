@@ -3,6 +3,13 @@ package com.fittrack.app.util
 import com.fittrack.app.ui.log.MeasureUnit
 import java.util.Locale
 
+/** Format a float macro value for display: strips trailing .0 (e.g. 12.0 → "12", 12.5 → "12.5") */
+fun formatMacro(v: Float): String {
+    val rounded = kotlin.math.round(v * 10) / 10f
+    return if (rounded == rounded.toLong().toFloat()) rounded.toLong().toString()
+    else "%.1f".format(rounded)
+}
+
 data class ServingSizeInfo(
     val amount: Float,
     val unit: MeasureUnit,

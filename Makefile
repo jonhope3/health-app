@@ -1,4 +1,4 @@
-.PHONY: setup start teardown build test clean emulator install run log help phone
+.PHONY: setup start teardown build test clean emulator install run log help phone release
 
 # Configuration
 GRADLE := ./gradlew
@@ -25,6 +25,7 @@ help:
 	@echo "make emulator - Launch the Pixel 10 Pro Emulator"
 	@echo "make install  - Install the app to the running emulator/device"
 	@echo "make run      - Install and launch the app on the emulator/device"
+	@echo "make release  - 💎 Build & Sign Production APK (fittrack-release.apk)"
 	@echo "make log      - View app logs (logcat)"
 
 # Verify environment
@@ -75,6 +76,12 @@ install:
 run: install
 	@echo "Launching app..."
 	@$(ADB) shell monkey -p $(PACKAGE_NAME) -c android.intent.category.LAUNCHER 1
+
+# Build and sign the production release APK
+release:
+	$(GRADLE) assembleRelease
+	@cp app/build/outputs/apk/release/app-release.apk ./fittrack-release.apk
+	@echo "Production APK built, signed, and moved to ./fittrack-release.apk"
 
 # View logs
 log:

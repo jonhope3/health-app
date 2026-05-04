@@ -157,17 +157,77 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     fun loadData() {
         viewModelScope.launch {
             val today = todayKey()
-            _foodLog.value = foodRepository.getDiary(today)
+            var diary = foodRepository.getDiary(today)
+
+            // AUTO-POPULATE FOR INTEGRATION TEST IF EMPTY
+            /*
+            if (diary.isEmpty()) {
+                val manualItem = DiaryItem(
+                    id = UUID.randomUUID().toString(),
+                    name = "Protein Shake (Manual)",
+                    calories = 150,
+                    protein = 30f,
+                    carbs = 5f,
+                    fat = 2f,
+                    sugar = 0f,
+                    mealType = MealType.SNACK,
+                    timestamp = System.currentTimeMillis()
+                )
+                
+                val aiItem = DiaryItem(
+                    id = UUID.randomUUID().toString(),
+                    name = "Scrambled Eggs (AI)",
+                    calories = 200,
+                    protein = 14f,
+                    carbs = 2f,
+                    fat = 15f,
+                    sugar = 1f,
+                    mealType = MealType.BREAKFAST,
+                    timestamp = System.currentTimeMillis() - 10000
+                )
+
+                val searchItem = DiaryItem(
+                    id = UUID.randomUUID().toString(),
+                    name = "Apple (Search)",
+                    calories = 95,
+                    protein = 0.5f,
+                    carbs = 25f,
+                    fat = 0.3f,
+                    sugar = 19f,
+                    mealType = MealType.SNACK,
+                    timestamp = System.currentTimeMillis() - 20000
+                )
+
+                foodRepository.addDiaryItem(manualItem, today)
+                foodRepository.addDiaryItem(aiItem, today)
+                foodRepository.addDiaryItem(searchItem, today)
+                
+                foodRepository.addOrUpdateFoodItem(FoodItem(searchItem.name, searchItem.calories, searchItem.protein, searchItem.carbs, searchItem.fat, searchItem.sugar, "1 large", 1, System.currentTimeMillis()))
+                foodRepository.addOrUpdateFoodItem(FoodItem(aiItem.name, aiItem.calories, aiItem.protein, aiItem.carbs, aiItem.fat, aiItem.sugar, "2 eggs", 1, System.currentTimeMillis()))
+                
+                diary = foodRepository.getDiary(today)
+            }
+            */
+
+            _foodLog.value = diary
             _calorieGoal.value = goalsRepository.getCalorieGoal()
             _caloriesEaten.value = foodRepository.getTotalCaloriesToday()
             _caloriesHistory.value = foodRepository.getCaloriesHistory(7)
-            _geminiReady.value = geminiNanoService.initIfNeeded()
+            try {
+                _geminiReady.value = geminiNanoService.initIfNeeded()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                _geminiReady.value = false
+            }
         }
     }
 
     fun searchFood() {
         val query = _searchQuery.value.trim()
         if (query.isBlank()) return
+        
+
         viewModelScope.launch {
             _isSearching.value = true
             _searchError.value = null
@@ -201,17 +261,8 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         val baseUnitLabel = parsedInfo.unit.label.lowercase()
         val loggingUnitLabel = unitLabel.lowercase()
 
-        val factor =
-                if (loggingUnitLabel.contains(baseUnitLabel) ||
-                                baseUnitLabel.contains(loggingUnitLabel.filter { it.isLetter() })
-                ) {
-                    // If logging in base units, derive amount from grams
-                    val amountLogged = grams / parsedInfo.unit.gramsPerUnit
-                    amountLogged / parsedInfo.amount.coerceAtLeast(0.1f)
-                } else {
-                    // Standard weight-based scaling
-                    (grams / parsedInfo.baseGrams.coerceAtLeast(1f)).coerceAtLeast(0.01f)
-                }
+        // Standard weight-based scaling
+        val factor = (grams / parsedInfo.baseGrams.coerceAtLeast(1f)).coerceAtLeast(0.01f)
         val qtyStr =
                 if (unitLabel == "g") {
                     if (grams == grams.toInt().toFloat()) "${grams.toInt()}g"
@@ -308,11 +359,11 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun getMealType(): MealType {
-        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-        return when {
-            hour < 10 -> MealType.BREAKFAST
-            hour in 11..15 -> MealType.LUNCH
-            hour in 17..21 -> MealType.DINNER
+        val hour = java.time.LocalTime.now().hour
+        return when (hour) {
+            in 0..9 -> MealType.BREAKFAST
+            in 10..14 -> MealType.LUNCH
+            in 15..20 -> MealType.DINNER
             else -> MealType.SNACK
         }
     }
@@ -383,9 +434,41 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun addAllParsedItems() {
-        _aiResults.value.forEach { addParsedItem(it) }
+        val items = _aiResults.value.toList()
+        items.forEach { item ->
+            val now = System.currentTimeMillis()
+            val entry =
+                    DiaryItem(
+                            id = UUID.randomUUID().toString(),
+                            name = item.name,
+                            calories = item.calories,
+                            protein = item.protein,
+                            carbs = item.carbs,
+                            fat = item.fat,
+                            sugar = item.sugar,
+                            timestamp = now,
+                            quantity = item.quantity,
+                            mealType = getMealType(),
+                            foodItemId = item.name
+                    )
+            foodRepository.addDiaryItem(entry, todayKey())
+            foodRepository.addOrUpdateFoodItem(
+                    FoodItem(
+                            name = item.name,
+                            calories = item.calories,
+                            protein = item.protein,
+                            carbs = item.carbs,
+                            fat = item.fat,
+                            sugar = item.sugar,
+                            servingDescription = item.quantity,
+                            usageCount = 1,
+                            lastUsed = now
+                    )
+            )
+        }
         _aiResults.value = emptyList()
         _aiInput.value = ""
+        loadData()
     }
 
     private val _editingEntry = MutableStateFlow<DiaryItem?>(null)
@@ -406,6 +489,9 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     private val _editFat = MutableStateFlow("")
     val editFat: StateFlow<String> = _editFat.asStateFlow()
 
+    private val _editSugar = MutableStateFlow("")
+    val editSugar: StateFlow<String> = _editSugar.asStateFlow()
+
     private val _editQuantity = MutableStateFlow("")
     val editQuantity: StateFlow<String> = _editQuantity.asStateFlow()
 
@@ -419,6 +505,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         _editProtein.value = fmtVal(entry.protein)
         _editCarbs.value = fmtVal(entry.carbs)
         _editFat.value = fmtVal(entry.fat)
+        _editSugar.value = fmtVal(entry.sugar)
         _editQuantity.value = entry.quantity ?: ""
         _autoScale.value = true
     }
@@ -437,6 +524,9 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun setEditFat(v: String) {
         _editFat.value = v
+    }
+    fun setEditSugar(v: String) {
+        _editSugar.value = v
     }
     fun setAutoScale(v: Boolean) {
         _autoScale.value = v
@@ -459,6 +549,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
                     _editProtein.value = fmtVal(entry.protein * ratio)
                     _editCarbs.value = fmtVal(entry.carbs * ratio)
                     _editFat.value = fmtVal(entry.fat * ratio)
+                    _editSugar.value = fmtVal(entry.sugar * ratio)
                 }
             }
         }
@@ -492,6 +583,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
                         protein = _editProtein.value.toFloatOrNull() ?: entry.protein,
                         carbs = _editCarbs.value.toFloatOrNull() ?: entry.carbs,
                         fat = _editFat.value.toFloatOrNull() ?: entry.fat,
+                        sugar = _editSugar.value.toFloatOrNull() ?: entry.sugar,
                         quantity = _editQuantity.value.trim().ifBlank { null }
                 )
         foodRepository.updateDiaryItem(updated, todayKey())
@@ -523,6 +615,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
                                 protein = food.protein,
                                 carbs = food.carbs,
                                 fat = food.fat,
+                                sugar = food.sugar,
                                 servingDescription = food.servingDescription
                         )
                 _customFoodSuggestions.value = emptyList()
@@ -533,6 +626,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
                 _manualProtein.value = food.protein.toString()
                 _manualCarbs.value = food.carbs.toString()
                 _manualFat.value = food.fat.toString()
+                _manualSugar.value = food.sugar.toString()
                 _customFoodSuggestions.value = emptyList()
             }
             else -> {}
@@ -541,11 +635,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun round1(v: Float): Float = kotlin.math.round(v * 10) / 10f
 
-    private fun fmtVal(v: Float): String {
-        val rounded = round1(v)
-        return if (rounded == rounded.toLong().toFloat()) rounded.toLong().toString()
-        else "%.1f".format(rounded)
-    }
+    private fun fmtVal(v: Float): String = com.fittrack.app.util.formatMacro(v)
 
     fun clearSearchResult() {
         _searchResult.value = null

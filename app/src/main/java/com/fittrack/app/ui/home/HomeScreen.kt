@@ -827,8 +827,8 @@ private fun MacroRow(
                                         Modifier.fillMaxWidth()
                                                 .height(6.dp)
                                                 .clip(RoundedCornerShape(3.dp)),
-                                color = color.copy(alpha = 0.2f),
-                                trackColor = Color.Transparent,
+                                color = color,
+                                trackColor = color.copy(alpha = 0.15f),
                                 drawStopIndicator = {}
                         )
                 }

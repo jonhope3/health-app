@@ -24,7 +24,7 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -363,7 +363,7 @@ private fun ModeToggleRow(mode: String, onModeChange: (String) -> Unit) {
         val modes =
                 listOf(
                         Triple("search", "Search", Icons.Filled.Search),
-                        Triple("ai", "AI", Icons.Filled.SmartToy),
+                        Triple("ai", "AI", Icons.Filled.AutoAwesome),
                         Triple("scan", "Scan", Icons.Filled.CameraAlt),
                         Triple("manual", "Manual", Icons.Filled.Add)
                 )
@@ -587,13 +587,13 @@ private fun AiModeContent(
                                 Column(modifier = Modifier.padding(16.dp)) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Icon(
-                                                        imageVector = Icons.Filled.SmartToy,
+                                                        imageVector = Icons.Filled.AutoAwesome,
                                                         contentDescription = null,
                                                         tint = AppColors.warning
                                                 )
                                                 Spacer(modifier = Modifier.width(8.dp))
                                                 Text(
-                                                        text = "Gemini Nano Unavailable",
+                                                        text = "On-Device AI Unavailable",
                                                         fontFamily = interFamily,
                                                         fontWeight = FontWeight.SemiBold,
                                                         style = MaterialTheme.typography.bodyLarge,
@@ -603,7 +603,7 @@ private fun AiModeContent(
                                         Spacer(modifier = Modifier.height(8.dp))
                                         Text(
                                                 text =
-                                                        "On-device AI requires Gemini Nano, which needs to be downloaded by your device. This can take a few hours after initial setup. Make sure your device is connected to WiFi and try again later.\n\nIn the meantime, use Search or Manual mode to log food.",
+                                                        "On-device AI needs to download a model to your device. This can take a few hours after initial setup. Make sure your device is connected to WiFi and try again later.\n\nIn the meantime, use Search or Manual mode to log food.",
                                                 fontFamily = interFamily,
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = AppColors.textSecondary
@@ -618,7 +618,7 @@ private fun AiModeContent(
                         modifier = Modifier.padding(bottom = 8.dp)
                 ) {
                         Icon(
-                                imageVector = Icons.Filled.SmartToy,
+                                imageVector = Icons.Filled.AutoAwesome,
                                 contentDescription = null,
                                 tint = AppColors.primary
                         )
@@ -854,10 +854,15 @@ private fun ManualModeContent(
 
                 OutlinedTextField(
                         value = manualCalories,
-                        onValueChange = onCaloriesChange,
+                        onValueChange = { onCaloriesChange(it.filter { c -> c.isDigit() }) },
                         label = { Text("Cal", fontFamily = interFamily) },
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        singleLine = true,
+                        keyboardOptions =
+                                androidx.compose.foundation.text.KeyboardOptions(
+                                        keyboardType =
+                                                androidx.compose.ui.text.input.KeyboardType.Number
+                                )
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -868,24 +873,39 @@ private fun ManualModeContent(
                 ) {
                         OutlinedTextField(
                                 value = manualProtein,
-                                onValueChange = onProteinChange,
+                                onValueChange = { onProteinChange(it.filter { c -> c.isDigit() || c == '.' }) },
                                 label = { Text("Protein (g)", fontFamily = interFamily) },
                                 modifier = Modifier.weight(1f),
-                                singleLine = true
+                                singleLine = true,
+                                keyboardOptions =
+                                        androidx.compose.foundation.text.KeyboardOptions(
+                                                keyboardType =
+                                                        androidx.compose.ui.text.input.KeyboardType.Decimal
+                                        )
                         )
                         OutlinedTextField(
                                 value = manualCarbs,
-                                onValueChange = onCarbsChange,
+                                onValueChange = { onCarbsChange(it.filter { c -> c.isDigit() || c == '.' }) },
                                 label = { Text("Carbs (g)", fontFamily = interFamily) },
                                 modifier = Modifier.weight(1f),
-                                singleLine = true
+                                singleLine = true,
+                                keyboardOptions =
+                                        androidx.compose.foundation.text.KeyboardOptions(
+                                                keyboardType =
+                                                        androidx.compose.ui.text.input.KeyboardType.Decimal
+                                        )
                         )
                         OutlinedTextField(
                                 value = manualFat,
-                                onValueChange = onFatChange,
+                                onValueChange = { onFatChange(it.filter { c -> c.isDigit() || c == '.' }) },
                                 label = { Text("Fat (g)", fontFamily = interFamily) },
                                 modifier = Modifier.weight(1f),
-                                singleLine = true
+                                singleLine = true,
+                                keyboardOptions =
+                                        androidx.compose.foundation.text.KeyboardOptions(
+                                                keyboardType =
+                                                        androidx.compose.ui.text.input.KeyboardType.Decimal
+                                        )
                         )
                 }
 
@@ -893,10 +913,15 @@ private fun ManualModeContent(
 
                 OutlinedTextField(
                         value = manualSugar,
-                        onValueChange = onSugarChange,
+                        onValueChange = { onSugarChange(it.filter { c -> c.isDigit() || c == '.' }) },
                         label = { Text("Sugar (g)", fontFamily = interFamily) },
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        singleLine = true,
+                        keyboardOptions =
+                                androidx.compose.foundation.text.KeyboardOptions(
+                                        keyboardType =
+                                                androidx.compose.ui.text.input.KeyboardType.Decimal
+                                )
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -964,14 +989,14 @@ private fun ScanModeContent(
                         ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
                                         Text(
-                                                text = "Gemini Nano Required",
+                                                text = "On-Device AI Required",
                                                 fontFamily = interFamily,
                                                 fontWeight = FontWeight.SemiBold,
                                                 color = AppColors.textPrimary
                                         )
                                         Text(
                                                 text =
-                                                        "Label scanning requires Gemini Nano, which is not ready on this device yet.",
+                                                        "Label scanning requires on-device AI, which is not ready on this device yet. Ensure WiFi is connected and try again later.",
                                                 fontFamily = interFamily,
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = AppColors.textSecondary
@@ -1174,7 +1199,7 @@ private fun ScanModeContent(
                                         verticalAlignment = Alignment.CenterVertically
                                 ) {
                                         Icon(
-                                                Icons.Filled.SmartToy,
+                                                Icons.Filled.Info,
                                                 contentDescription = null,
                                                 tint = AppColors.error
                                         )
@@ -1215,6 +1240,7 @@ private fun EditFoodDialog(viewModel: LogViewModel) {
         val editProtein by viewModel.editProtein.collectAsState()
         val editCarbs by viewModel.editCarbs.collectAsState()
         val editFat by viewModel.editFat.collectAsState()
+        val editSugar by viewModel.editSugar.collectAsState()
         val editQuantity by viewModel.editQuantity.collectAsState()
         val autoScale by viewModel.autoScale.collectAsState()
 
@@ -1302,15 +1328,18 @@ private fun EditFoodDialog(viewModel: LogViewModel) {
 
                                 OutlinedTextField(
                                         value = editCalories,
-                                        onValueChange = { viewModel.setEditCalories(it) },
+                                        onValueChange = { viewModel.setEditCalories(it.filter { c -> c.isDigit() }) },
                                         label = { Text("Cal", fontFamily = interFamily) },
                                         modifier = Modifier.fillMaxWidth(),
-                                        colors = textFieldColors
+                                        colors = textFieldColors,
+                                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                                        )
                                 )
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         OutlinedTextField(
                                                 value = editProtein,
-                                                onValueChange = { viewModel.setEditProtein(it) },
+                                                onValueChange = { viewModel.setEditProtein(it.filter { c -> c.isDigit() || c == '.' }) },
                                                 label = {
                                                         Text(
                                                                 "Protein (g)",
@@ -1318,27 +1347,46 @@ private fun EditFoodDialog(viewModel: LogViewModel) {
                                                         )
                                                 },
                                                 modifier = Modifier.weight(1f),
-                                                colors = textFieldColors
+                                                colors = textFieldColors,
+                                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                                                )
                                         )
                                         OutlinedTextField(
                                                 value = editCarbs,
-                                                onValueChange = { viewModel.setEditCarbs(it) },
+                                                onValueChange = { viewModel.setEditCarbs(it.filter { c -> c.isDigit() || c == '.' }) },
                                                 label = {
                                                         Text("Carbs (g)", fontFamily = interFamily)
                                                 },
                                                 modifier = Modifier.weight(1f),
-                                                colors = textFieldColors
+                                                colors = textFieldColors,
+                                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                                                )
                                         )
                                         OutlinedTextField(
                                                 value = editFat,
-                                                onValueChange = { viewModel.setEditFat(it) },
+                                                onValueChange = { viewModel.setEditFat(it.filter { c -> c.isDigit() || c == '.' }) },
                                                 label = {
                                                         Text("Fat (g)", fontFamily = interFamily)
                                                 },
                                                 modifier = Modifier.weight(1f),
-                                                colors = textFieldColors
+                                                colors = textFieldColors,
+                                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                                                )
                                         )
                                 }
+                                OutlinedTextField(
+                                        value = editSugar,
+                                        onValueChange = { viewModel.setEditSugar(it.filter { c -> c.isDigit() || c == '.' }) },
+                                        label = { Text("Sugar (g)", fontFamily = interFamily) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = textFieldColors,
+                                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                                        )
+                                )
                         }
                 },
                 confirmButton = {

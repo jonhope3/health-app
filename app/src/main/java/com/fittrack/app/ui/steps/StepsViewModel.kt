@@ -75,7 +75,7 @@ class StepsViewModel(application: Application) : AndroidViewModel(application) {
                 viewModelScope.launch {
                     while (true) {
                         loadData()
-                        kotlinx.coroutines.delay(30000) // Poll every 30 seconds
+                        kotlinx.coroutines.delay(120000) // Poll every 2 minutes
                     }
                 }
     }

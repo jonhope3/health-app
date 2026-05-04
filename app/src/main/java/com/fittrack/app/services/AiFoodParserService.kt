@@ -17,43 +17,62 @@ class AiFoodParserService(
     private val json = Json { ignoreUnknownKeys = true }
 
     suspend fun parseFood(input: String): List<ParsedFoodItem> = withContext(Dispatchers.IO) {
-        try {
-            if (!geminiNanoService.initIfNeeded()) return@withContext emptyList()
-
-            val prompt = PARSE_PROMPT + input.trim() + "\"\nOutput:"
-            val response = geminiNanoService.generateContent(prompt)
-            if (response.isBlank()) return@withContext emptyList()
-
-            extractJsonArray(response)
-        } catch (e: Exception) {
-            emptyList()
+        if (!geminiNanoService.initIfNeeded()) return@withContext emptyList()
+        val prompt = PARSE_PROMPT + input.trim() + "\"\nOutput:"
+        
+        var attempts = 0
+        while (attempts < 2) {
+            try {
+                val response = geminiNanoService.generateContent(prompt)
+                if (response.isNotBlank()) {
+                    val result = extractJsonArray(response)
+                    if (result.isNotEmpty()) return@withContext result
+                }
+            } catch (e: Exception) {
+                // Ignore and retry
+            }
+            attempts++
         }
+        emptyList()
     }
 
     suspend fun aiNutritionLookup(food: String): NutritionResult? = withContext(Dispatchers.IO) {
-        try {
-            if (!geminiNanoService.initIfNeeded()) return@withContext null
+        if (!geminiNanoService.initIfNeeded()) return@withContext null
 
-            val prompt =
-                "What is the nutrition for 100g of $food? Return ONLY a JSON object with: name (string), calories (number), protein (number, grams), carbs (number, grams), fat (number, grams). Use USDA values. Example: {\"name\":\"Banana\",\"calories\":89,\"protein\":1.1,\"carbs\":22.8,\"fat\":0.3}"
-            val response = geminiNanoService.generateContent(prompt)
-            if (response.isBlank()) return@withContext null
+        val prompt = """<instruction>
+Return the nutrition facts for 100g of $food as a JSON object with these fields: name (string), calories (number), protein (number, grams), carbs (number, grams), fat (number, grams), sugar (number, total sugars in grams). Use standard USDA values. Return ONLY the JSON object.
+</instruction>
+<example_output>
+{"name":"Banana","calories":89,"protein":1.1,"carbs":22.8,"fat":0.3,"sugar":12.2}
+</example_output>"""
 
-            val jsonObj = extractJsonObject(response) ?: return@withContext null
-            val calories = jsonObj["calories"]?.jsonPrimitive?.content?.toIntOrNull() ?: return@withContext null
-            if (calories <= 0) return@withContext null
-
-            NutritionResult(
-                name = jsonObj["name"]?.jsonPrimitive?.content ?: food,
-                calories = calories,
-                protein = round1(jsonObj["protein"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 0.0),
-                carbs = round1(jsonObj["carbs"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 0.0),
-                fat = round1(jsonObj["fat"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 0.0),
-                servingDescription = "100g"
-            )
-        } catch (e: Exception) {
-            null
+        var attempts = 0
+        while (attempts < 2) {
+            try {
+                val response = geminiNanoService.generateContent(prompt)
+                if (response.isNotBlank()) {
+                    val jsonObj = extractJsonObject(response)
+                    if (jsonObj != null) {
+                        val calories = jsonObj["calories"]?.jsonPrimitive?.content?.toIntOrNull()
+                        if (calories != null && calories > 0) {
+                            return@withContext NutritionResult(
+                                name = jsonObj["name"]?.jsonPrimitive?.content ?: food,
+                                calories = calories,
+                                protein = round1(jsonObj["protein"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 0.0),
+                                carbs = round1(jsonObj["carbs"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 0.0),
+                                fat = round1(jsonObj["fat"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 0.0),
+                                sugar = round1(jsonObj["sugar"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 0.0),
+                                servingDescription = "100g"
+                            )
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // Ignore and retry
+            }
+            attempts++
         }
+        null
     }
 
     private fun extractJsonArray(text: String): List<ParsedFoodItem> {
@@ -112,6 +131,7 @@ class AiFoodParserService(
 
             val jsonObj = extractJsonObject(response) ?: return@withContext null
             val name = jsonObj["name"]?.jsonPrimitive?.content?.trim() ?: "Unknown"
+            if (name == "NOT_FOUND") return@withContext null
             val calories = jsonObj["calories"]?.jsonPrimitive?.content?.toIntOrNull() ?: return@withContext null
             if (calories <= 0) return@withContext null
 
@@ -143,37 +163,53 @@ class AiFoodParserService(
     private fun round1(n: Double): Float = (kotlin.math.round(n * 10) / 10.0).toFloat()
 
     companion object {
-        private const val PARSE_PROMPT = """You are a nutrition assistant. Given a food description, extract each food item with estimated nutrition per serving.
+        private const val PARSE_PROMPT = """<instruction>
+You are a nutrition data extractor. Given a food description, extract each individual food item with estimated nutrition per serving. Return ONLY a JSON array, no other text or markdown.
 
-Return ONLY a JSON array. Each item must have: name, calories (number), protein (number, grams), carbs (number, grams), fat (number, grams), sugar (number, grams — total sugars), quantity (string, like "1 medium" or "100g"), confidence (number, 0.0 to 1.0 — how confident you are in the nutrition values: 1.0 = exact known values, 0.7+ = well-known food, 0.4-0.7 = rough estimate, below 0.4 = guessing).
+Each item in the array must have these fields:
+- name (string): food name
+- calories (number): kcal per serving
+- protein (number): grams
+- carbs (number): grams
+- fat (number): grams
+- sugar (number): total sugars in grams
+- quantity (string): serving description like "2 large" or "1 slice"
+- confidence (number): 0.0-1.0 accuracy estimate
 
-Be accurate with standard USDA values. If unsure, provide reasonable estimates.
+Use standard USDA nutritional values. If unsure, provide reasonable estimates with lower confidence.
+</instruction>
 
-Examples:
-Input: "2 scrambled eggs with toast and butter"
-Output: [{"name":"Scrambled eggs","calories":182,"protein":12.6,"carbs":1.6,"fat":13.4,"sugar":0.3,"quantity":"2 large","confidence":0.85},{"name":"White toast","calories":79,"protein":2.7,"carbs":14.8,"fat":1.0,"sugar":1.4,"quantity":"1 slice","confidence":0.9},{"name":"Butter","calories":36,"protein":0,"carbs":0,"fat":4.1,"sugar":0,"quantity":"1 pat","confidence":0.9}]
-
-Input: "a big mac and medium fries"
-Output: [{"name":"Big Mac","calories":550,"protein":25,"carbs":45,"fat":30,"sugar":9,"quantity":"1 sandwich","confidence":0.95},{"name":"Medium fries","calories":320,"protein":5,"carbs":43,"fat":15,"sugar":0,"quantity":"1 medium","confidence":0.9}]
+<examples>
+Input: "2 scrambled eggs with toast"
+Output: [{"name":"Scrambled eggs","calories":182,"protein":12.6,"carbs":1.6,"fat":13.4,"sugar":0.3,"quantity":"2 large","confidence":0.85},{"name":"White toast","calories":79,"protein":2.7,"carbs":14.8,"fat":1.0,"sugar":1.4,"quantity":"1 slice","confidence":0.9}]
 
 Input: "handful of almonds"
 Output: [{"name":"Almonds","calories":164,"protein":6,"carbs":6,"fat":14,"sugar":1.2,"quantity":"1 oz (23 almonds)","confidence":0.7}]
+</examples>
 
-Now parse this:
-Input: """
+<input>
+"""
 
-        private const val LABEL_PROMPT = """Read the nutrition facts label in this image. Return ONLY a JSON object with these fields:
-- name (string): the product name if visible, otherwise "Unknown"
-- serving_size (string): the serving size shown on the label. Prefer decimals (e.g. "1.5 cups" instead of "1 1/2 cups") if possible.
-- calories (number): calories ALWAYS as a pure number (no units)
-- protein (number): grams ALWAYS as a pure number (no units)
-- carbs (number): grams ALWAYS as a pure number (no units)
-- fat (number): grams ALWAYS as a pure number (no units)
-- sugar (number): total sugars in grams ALWAYS as a pure number (no units)
-- confidence (number): 0.0 to 1.0 — how confident you are in the values read from the label. 1.0 = clearly readable, 0.5 = partially readable, below 0.5 = hard to read.
+        private const val LABEL_PROMPT = """<instruction>
+You are a nutrition label reader. Analyze the image and extract nutrition facts data.
 
-Example: {"name":"Cheerios","serving_size":"1.5 cups (58g)","calories":210,"protein":5,"carbs":44,"fat":3.5,"sugar":12,"confidence":0.95}
+If the image does NOT contain a nutrition label, return: {"name":"NOT_FOUND","calories":0}
 
-Return ONLY the JSON object, no other text."""
+If a nutrition label IS visible, return a JSON object with these fields:
+- name (string): product name if visible, otherwise "Unknown"
+- serving_size (string): serving size from label, use decimals not fractions
+- calories (number): kcal as a pure number
+- protein (number): grams as a pure number
+- carbs (number): total carbohydrates in grams as a pure number
+- fat (number): total fat in grams as a pure number
+- sugar (number): total sugars in grams as a pure number
+- confidence (number): 0.0-1.0 readability confidence
+
+Return ONLY the JSON object, no other text or markdown.
+</instruction>
+
+<example_output>
+{"name":"Cheerios","serving_size":"1.5 cups (58g)","calories":210,"protein":5,"carbs":44,"fat":3.5,"sugar":12,"confidence":0.95}
+</example_output>"""
     }
 }

@@ -21,17 +21,21 @@ class FoodRepository(context: Context) {
         }
     }
 
+    @Synchronized
     fun addDiaryItem(entry: DiaryItem, date: String) {
         val list = getDiary(date).toMutableList()
-        list.add(entry.copy(id = UUID.randomUUID().toString()))
+        val finalEntry = if (entry.id.isBlank()) entry.copy(id = UUID.randomUUID().toString()) else entry
+        list.add(finalEntry)
         prefs.edit().putString("food_log_$date", json.encodeToString(list)).apply()
     }
 
+    @Synchronized
     fun removeDiaryItem(id: String, date: String) {
         val list = getDiary(date).filter { it.id != id }
         prefs.edit().putString("food_log_$date", json.encodeToString(list)).apply()
     }
 
+    @Synchronized
     fun updateDiaryItem(updated: DiaryItem, date: String) {
         val list = getDiary(date).map { if (it.id == updated.id) updated else it }
         prefs.edit().putString("food_log_$date", json.encodeToString(list)).apply()
@@ -61,6 +65,7 @@ class FoodRepository(context: Context) {
         }
     }
 
+    @Synchronized
     fun addOrUpdateFoodItem(food: FoodItem) {
         val all = getAllFoodItems().toMutableList()
         val existing = all.find { it.name.equals(food.name, ignoreCase = true) }
@@ -83,6 +88,7 @@ class FoodRepository(context: Context) {
         prefs.edit().putString("custom_foods", json.encodeToString(updated)).apply()
     }
 
+    @Synchronized
     fun removeFoodItem(name: String) {
         val all = getAllFoodItems().filter { !it.name.equals(name, ignoreCase = true) }
         prefs.edit().putString("custom_foods", json.encodeToString(all)).apply()

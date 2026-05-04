@@ -159,11 +159,7 @@ fun DiaryItemCard(entry: DiaryItem, onEdit: () -> Unit, onDelete: () -> Unit) {
     }
 }
 
-private fun fmt(v: Float): String {
-    val rounded = kotlin.math.round(v * 10) / 10f
-    return if (rounded == rounded.toLong().toFloat()) rounded.toLong().toString()
-    else "%.1f".format(rounded)
-}
+private fun fmt(v: Float): String = com.fittrack.app.util.formatMacro(v)
 
 @Composable
 private fun MacroPill(label: String, value: String, color: androidx.compose.ui.graphics.Color) {
