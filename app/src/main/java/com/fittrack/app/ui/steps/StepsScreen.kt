@@ -193,7 +193,7 @@ fun StepsScreen(viewModel: StepsViewModel = viewModel()) {
                                 modifier = Modifier.weight(1f).fillMaxHeight(),
                                 icon = Icons.Default.LocalFireDepartment,
                                 value = fmtNum(caloriesBurned),
-                                label = "Cal Burned"
+                                label = "Cal Burned from Steps"
                         )
                         StatCard(
                                 modifier = Modifier.weight(1f).fillMaxHeight(),
@@ -307,12 +307,14 @@ fun StepsScreen(viewModel: StepsViewModel = viewModel()) {
                                                 modifier = Modifier.fillMaxWidth(),
                                                 singleLine = true,
                                                 keyboardOptions =
-                                                        androidx.compose.foundation.text.KeyboardOptions(
-                                                                keyboardType =
-                                                                        androidx.compose.ui.text.input
-                                                                                .KeyboardType
-                                                                                .Number
-                                                        )
+                                                        androidx.compose.foundation.text
+                                                                .KeyboardOptions(
+                                                                        keyboardType =
+                                                                                androidx.compose.ui
+                                                                                        .text.input
+                                                                                        .KeyboardType
+                                                                                        .Number
+                                                                )
                                         )
                                         Spacer(modifier = Modifier.height(16.dp))
                                         Row(

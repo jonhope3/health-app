@@ -1,4 +1,4 @@
-.PHONY: setup start teardown build test clean emulator install run log help phone release
+.PHONY: setup start teardown build test clean emulator install run log help phone release deploy
 
 # Configuration
 GRADLE := ./gradlew
@@ -26,6 +26,7 @@ help:
 	@echo "make install  - Install the app to the running emulator/device"
 	@echo "make run      - Install and launch the app on the emulator/device"
 	@echo "make release  - 💎 Build & Sign Production APK (fittrack-release.apk)"
+	@echo "make deploy   - 🚀 Build, Sign, and Install Production APK to Phone"
 	@echo "make log      - View app logs (logcat)"
 
 # Verify environment
@@ -82,6 +83,12 @@ release:
 	$(GRADLE) assembleRelease
 	@cp app/build/outputs/apk/release/app-release.apk ./fittrack-release.apk
 	@echo "Production APK built, signed, and moved to ./fittrack-release.apk"
+	
+# Build, sign, and install production APK on phone
+deploy: release
+	$(ADB) install -r ./fittrack-release.apk
+	$(ADB) push ./fittrack-release.apk /sdcard/Download/
+	@echo "Production APK deployed and pushed to Downloads."
 
 # View logs
 log:

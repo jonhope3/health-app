@@ -4,6 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ContextualFlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -112,11 +115,15 @@ fun DiaryItemCard(entry: DiaryItem, onEdit: () -> Unit, onDelete: () -> Unit) {
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    MacroPill("Protein", "${fmt(entry.protein)}g", AppColors.protein)
-                    MacroPill("Carbs", "${fmt(entry.carbs)}g", AppColors.carbs)
-                    MacroPill("Fat", "${fmt(entry.fat)}g", AppColors.fat)
-                    MacroPill("Sugar", "${fmt(entry.sugar)}g", AppColors.sugar)
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    MacroPill("P", "${fmt(entry.protein)}g", AppColors.protein)
+                    MacroPill("C", "${fmt(entry.carbs)}g", AppColors.carbs)
+                    MacroPill("F", "${fmt(entry.fat)}g", AppColors.fat)
+                    MacroPill("S", "${fmt(entry.sugar)}g", AppColors.sugar)
                 }
             }
             Spacer(modifier = Modifier.width(8.dp))
@@ -172,7 +179,9 @@ private fun MacroPill(label: String, value: String, color: androidx.compose.ui.g
                 text = "$label: $value",
                 fontFamily = interFamily,
                 style = MaterialTheme.typography.labelSmall,
-                color = AppColors.textPrimary
+                color = AppColors.textPrimary,
+                maxLines = 1,
+                softWrap = false
         )
     }
 }
