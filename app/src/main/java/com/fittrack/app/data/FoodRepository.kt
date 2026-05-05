@@ -67,6 +67,16 @@ class FoodRepository(
         return dates.map { it to (rowMap[it] ?: 0) }
     }
 
+    /**
+     * Returns calories consumed per meal type for [date].
+     * Meal types with no entries are omitted from the map.
+     */
+    suspend fun getMealTypeCalories(date: String = LocalDate.now().toString()): Map<MealType, Int> {
+        return diaryDao.getCaloriesByMealType(date).associate { row ->
+            MealType.valueOf(row.mealType) to row.totalCalories
+        }
+    }
+
     suspend fun cleanupOldData(retainDays: Int = 90) {
         val cutoff = LocalDate.now().minusDays(retainDays.toLong()).toString()
         diaryDao.deleteOlderThan(cutoff)

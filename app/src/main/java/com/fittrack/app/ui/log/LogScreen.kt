@@ -20,11 +20,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Coffee
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LunchDining
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,6 +43,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,6 +51,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fittrack.app.data.DiaryItem
 import com.fittrack.app.data.FoodItem
+import com.fittrack.app.data.MealType
 import com.fittrack.app.data.NutritionResult
 import com.fittrack.app.theme.AppColors
 import com.fittrack.app.theme.interFamily
@@ -53,7 +60,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 @Composable
-fun LogScreen(viewModel: LogViewModel = hiltViewModel()) {
+fun LogScreen(viewModel: LogViewModel = hiltViewModel(), mealFilter: String? = null) {
         val mode by viewModel.mode.collectAsStateWithLifecycle()
         val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
         val searchResult by viewModel.searchResult.collectAsStateWithLifecycle()
@@ -81,6 +88,12 @@ fun LogScreen(viewModel: LogViewModel = hiltViewModel()) {
         val allCustomFoods by viewModel.allCustomFoods.collectAsStateWithLifecycle()
         val caloriesHistory by viewModel.caloriesHistory.collectAsStateWithLifecycle()
 
+        val mealFilterState by viewModel.mealFilter.collectAsStateWithLifecycle()
+
+        // Apply deep-link filter from HomeScreen on first composition
+        LaunchedEffect(mealFilter) {
+            viewModel.setMealFilter(mealFilter)
+        }
         LaunchedEffect(Unit) { viewModel.loadData() }
 
         Column(
@@ -90,7 +103,7 @@ fun LogScreen(viewModel: LogViewModel = hiltViewModel()) {
                                 .padding(top = 16.dp, start = 16.dp, end = 16.dp, bottom = 24.dp)
         ) {
                 Text(
-                        text = "Log Food",
+                        text = "Diary",
                         fontFamily = interFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 32.sp,
@@ -203,14 +216,118 @@ fun LogScreen(viewModel: LogViewModel = hiltViewModel()) {
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                foodLog.forEachIndexed { index, entry ->
+                // ── Meal-grouped diary ───────────────────────────────────────
+                val mealOrder = listOf(
+                    MealType.BREAKFAST to Triple("Breakfast", Icons.Filled.WbSunny,    android.graphics.Color.parseColor("#FF9800")),
+                    MealType.LUNCH     to Triple("Lunch",     Icons.Filled.LunchDining, android.graphics.Color.parseColor("#4CAF50")),
+                    MealType.DINNER    to Triple("Dinner",    Icons.Filled.Bedtime,     android.graphics.Color.parseColor("#7C5CBF")),
+                    MealType.SNACK     to Triple("Snacks",    Icons.Filled.Coffee,      android.graphics.Color.parseColor("#2196F3")),
+                    MealType.OTHER     to Triple("Other",     Icons.Filled.Restaurant,  android.graphics.Color.parseColor("#9E9E9E")),
+                )
+                val groupedLog = foodLog.groupBy { it.mealType }
+
+                // Determine active meal tab — default from filter or the first group with items
+                var activeMeal by remember(mealFilterState) {
+                    mutableStateOf(
+                        mealFilterState?.let { filter ->
+                            MealType.values().firstOrNull { it.name == filter }
+                        } ?: (groupedLog.keys.firstOrNull() ?: MealType.BREAKFAST)
+                    )
+                }
+
+                // Pill tabs for meals that have entries, or all if diary is empty
+                val tabMeals = if (groupedLog.isEmpty()) {
+                    mealOrder.map { it.first }
+                } else {
+                    mealOrder.filter { (type, _) -> groupedLog.containsKey(type) }.map { it.first }
+                }
+
+                // Scroll horizontally through tabs
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    tabMeals.forEach { mealType ->
+                        val meta = mealOrder.first { it.first == mealType }.second
+                        val isActive = mealType == activeMeal
+                        val mealColor = Color(meta.third)
+                        val entries = groupedLog[mealType] ?: emptyList()
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isActive) mealColor.copy(alpha = 0.15f) else Color.Transparent)
+                                .border(
+                                    width = if (isActive) 1.5.dp else 1.dp,
+                                    color = if (isActive) mealColor else AppColors.border,
+                                    shape = RoundedCornerShape(12.dp),
+                                )
+                                .clickable { activeMeal = mealType }
+                                .padding(vertical = 8.dp, horizontal = 4.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                            ) {
+                                Icon(
+                                    imageVector = meta.second,
+                                    contentDescription = meta.first,
+                                    tint = if (isActive) mealColor else AppColors.textSecondary,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Text(
+                                    text = meta.first,
+                                    fontFamily = interFamily,
+                                    fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
+                                    fontSize = 10.sp,
+                                    color = if (isActive) mealColor else AppColors.textSecondary,
+                                    textAlign = TextAlign.Center,
+                                )
+                                if (entries.isNotEmpty()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(4.dp)
+                                            .clip(CircleShape)
+                                            .background(mealColor),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // ── Entries for the active meal ─────────────────────────────
+                val activeEntries = groupedLog[activeMeal] ?: emptyList()
+                if (activeEntries.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(AppColors.border.copy(alpha = 0.15f))
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "Nothing logged for ${mealOrder.first { it.first == activeMeal }.second.first} yet",
+                            fontFamily = interFamily,
+                            fontSize = 14.sp,
+                            color = AppColors.textSecondary,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                } else {
+                    activeEntries.forEachIndexed { index, entry ->
                         TimelineDiaryItem(
                                 entry = entry,
                                 isFirst = index == 0,
-                                isLast = index == foodLog.size - 1,
+                                isLast = index == activeEntries.size - 1,
                                 onEdit = { viewModel.startEdit(entry) },
                                 onDelete = { viewModel.removeEntry(entry.id) }
                         )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))

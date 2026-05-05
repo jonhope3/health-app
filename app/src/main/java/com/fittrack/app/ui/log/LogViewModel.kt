@@ -64,6 +64,8 @@ class LogViewModel @Inject constructor(
     private val _scanError            = MutableStateFlow<String?>(null)
     private val _showAllFoods         = MutableStateFlow(false)
     private val _allCustomFoods       = MutableStateFlow<List<FoodItem>>(emptyList())
+    /** The meal type name to highlight/scroll to, set from HomeScreen deep-link. */
+    private val _mealFilter           = MutableStateFlow<String?>(null)
 
     // Edit dialog
     private val _editingEntry   = MutableStateFlow<DiaryItem?>(null)
@@ -111,8 +113,11 @@ class LogViewModel @Inject constructor(
     val editSugar:             StateFlow<String>               = _editSugar.asStateFlow()
     val editQuantity:          StateFlow<String>               = _editQuantity.asStateFlow()
     val autoScale:             StateFlow<Boolean>              = _autoScale.asStateFlow()
+    val mealFilter:            StateFlow<String?>              = _mealFilter.asStateFlow()
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    fun setMealFilter(filter: String?) { _mealFilter.value = filter }
 
     fun loadData() {
         viewModelScope.launch {

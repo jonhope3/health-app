@@ -32,6 +32,18 @@ interface DiaryItemDao {
     """)
     suspend fun getMacrosForDate(date: String): MacroSumRow?
 
+    /**
+     * Returns total calories grouped by meal type for the given date.
+     * Unlogged meal types simply won't appear in the result list.
+     */
+    @Query("""
+        SELECT mealType, SUM(calories) as totalCalories
+        FROM diary_item
+        WHERE date = :date
+        GROUP BY mealType
+    """)
+    suspend fun getCaloriesByMealType(date: String): List<MealTypeCaloriesRow>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(item: DiaryItemEntity)
 
@@ -49,6 +61,8 @@ interface DiaryItemDao {
 }
 
 data class DateCaloriesRow(val date: String, val total: Int)
+
+data class MealTypeCaloriesRow(val mealType: String, val totalCalories: Int)
 
 data class MacroSumRow(
     val protein: Float,

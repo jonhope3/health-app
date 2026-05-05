@@ -1,15 +1,20 @@
 package com.fittrack.app.ui.home
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,9 +27,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.Coffee
+import androidx.compose.material.icons.filled.LunchDining
+import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -49,11 +59,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -61,6 +73,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.fittrack.app.AppRoute
+import com.fittrack.app.data.MealType
 import com.fittrack.app.theme.AppColors
 import com.fittrack.app.theme.interFamily
 import com.fittrack.app.ui.common.ScreenScaffold
@@ -299,6 +312,302 @@ private fun OnboardingDialog(
         )
 }
 
+// ── Meal Visualization ────────────────────────────────────────────────────────
+
+private data class MealSlot(
+    val type: MealType,
+    val label: String,
+    val icon: ImageVector,
+    val color: Color,
+)
+
+private val MEAL_SLOTS = listOf(
+    MealSlot(MealType.BREAKFAST, "Breakfast", Icons.Filled.WbSunny,     Color(0xFFFF9800)),
+    MealSlot(MealType.LUNCH,     "Lunch",     Icons.Filled.LunchDining,  Color(0xFF4CAF50)),
+    MealSlot(MealType.DINNER,    "Dinner",    Icons.Filled.Bedtime,      Color(0xFF7C5CBF)),
+    MealSlot(MealType.SNACK,     "Snacks",    Icons.Filled.Coffee,       Color(0xFF2196F3)),
+)
+
+@Composable
+private fun MealVisualizationCard(
+    breakdown: Map<MealType, Int>,
+    selectedMeal: MealType,
+    calorieGoal: Int,
+    onMealSelected: (MealType) -> Unit,
+    onMealDetailClick: (MealType) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val totalLogged = breakdown.values.sum()
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = AppColors.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+
+            // ── Header ──────────────────────────────────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Meals Today",
+                    fontFamily = interFamily,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp,
+                    color = AppColors.textPrimary,
+                )
+                if (totalLogged > 0) {
+                    Text(
+                        text = "${fmtNum(totalLogged)} cal logged",
+                        fontFamily = interFamily,
+                        fontSize = 12.sp,
+                        color = AppColors.textSecondary,
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // ── Meal Pill Tabs ───────────────────────────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                MEAL_SLOTS.forEach { slot ->
+                    val isSelected = slot.type == selectedMeal
+                    val slotCals = breakdown[slot.type] ?: 0
+                    val hasFood = slotCals > 0
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (isSelected) slot.color.copy(alpha = 0.15f)
+                                else Color.Transparent
+                            )
+                            .border(
+                                width = if (isSelected) 1.5.dp else 1.dp,
+                                color = if (isSelected) slot.color
+                                        else AppColors.border,
+                                shape = RoundedCornerShape(12.dp),
+                            )
+                            .clickable { onMealSelected(slot.type) }
+                            .padding(vertical = 8.dp, horizontal = 4.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Icon(
+                                imageVector = slot.icon,
+                                contentDescription = slot.label,
+                                tint = if (isSelected) slot.color else AppColors.textSecondary,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Text(
+                                text = slot.label,
+                                fontFamily = interFamily,
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                fontSize = 10.sp,
+                                color = if (isSelected) slot.color else AppColors.textSecondary,
+                                textAlign = TextAlign.Center,
+                            )
+                            // Small dot if food logged for this meal
+                            if (hasFood) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(4.dp)
+                                        .clip(CircleShape)
+                                        .background(slot.color),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ── Stacked calorie bar ──────────────────────────────────────────
+            if (totalLogged > 0 || calorieGoal > 0) {
+                val barTotal = calorieGoal.coerceAtLeast(totalLogged).coerceAtLeast(1)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(10.dp)
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(AppColors.border.copy(alpha = 0.4f)),
+                ) {
+                    MEAL_SLOTS.forEach { slot ->
+                        val rawCals = breakdown[slot.type] ?: 0
+                        val frac by animateFloatAsState(
+                            targetValue = rawCals.toFloat() / barTotal,
+                            animationSpec = tween(700, easing = FastOutSlowInEasing),
+                            label = "bar_${slot.type}",
+                        )
+                        if (frac > 0f) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(frac)
+                                    .fillMaxHeight()
+                                    .background(slot.color),
+                            )
+                        }
+                    }
+                    // Remaining unfilled space
+                    val filledFrac = MEAL_SLOTS.sumOf {
+                        (breakdown[it.type] ?: 0).toFloat().toDouble()
+                    }.toFloat() / barTotal
+                    val remainFrac = (1f - filledFrac).coerceAtLeast(0f)
+                    if (remainFrac > 0f) {
+                        Box(
+                            modifier = Modifier
+                                .weight(remainFrac)
+                                .fillMaxHeight()
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                // Legend
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    MEAL_SLOTS.forEach { slot ->
+                        if ((breakdown[slot.type] ?: 0) > 0) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(7.dp)
+                                        .clip(CircleShape)
+                                        .background(slot.color),
+                                )
+                                Text(
+                                    text = slot.label,
+                                    fontFamily = interFamily,
+                                    fontSize = 10.sp,
+                                    color = AppColors.textSecondary,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ── Selected meal detail ─────────────────────────────────────────
+            val currentSlot = MEAL_SLOTS.first { it.type == selectedMeal }
+            val currentCals = breakdown[selectedMeal] ?: 0
+            val animatedCals by animateIntAsState(
+                targetValue = currentCals,
+                animationSpec = tween(600, easing = FastOutSlowInEasing),
+                label = "meal_cals",
+            )
+            val mealPct = if (calorieGoal > 0) currentCals.toFloat() / calorieGoal else 0f
+            val animatedMealPct by animateFloatAsState(
+                targetValue = mealPct.coerceIn(0f, 1f),
+                animationSpec = tween(700, easing = FastOutSlowInEasing),
+                label = "meal_pct",
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(currentSlot.color.copy(alpha = 0.08f))
+                    .clickable { onMealDetailClick(selectedMeal) }
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Icon(
+                            imageVector = currentSlot.icon,
+                            contentDescription = currentSlot.label,
+                            tint = currentSlot.color,
+                            modifier = Modifier.size(32.dp),
+                        )
+                        Column {
+                            AnimatedContent(
+                                targetState = animatedCals,
+                                transitionSpec = {
+                                    fadeIn(tween(300)) togetherWith
+                                        androidx.compose.animation.fadeOut(tween(150))
+                                },
+                                label = "cals_anim",
+                            ) { cals ->
+                                Text(
+                                    text = "${fmtNum(cals)} cal",
+                                    fontFamily = interFamily,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 22.sp,
+                                    color = currentSlot.color,
+                                )
+                            }
+                            Text(
+                                text = if (currentCals == 0) "Nothing logged yet · tap to open Diary"
+                                       else "${currentSlot.label} · ${(mealPct * 100).toInt()}% of goal · tap for details",
+                                fontFamily = interFamily,
+                                fontSize = 12.sp,
+                                color = AppColors.textSecondary,
+                            )
+                        }
+                    }
+                    // Mini ring indicator
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(currentSlot.color.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Canvas(modifier = Modifier.size(40.dp)) {
+                            val stroke = 5.dp.toPx()
+                            drawArc(
+                                color = currentSlot.color.copy(alpha = 0.18f),
+                                startAngle = -90f,
+                                sweepAngle = 360f,
+                                useCenter = false,
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                    width = stroke,
+                                ),
+                            )
+                            drawArc(
+                                color = currentSlot.color,
+                                startAngle = -90f,
+                                sweepAngle = 360f * animatedMealPct,
+                                useCenter = false,
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                    width = stroke,
+                                    cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                                ),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── HomeScreen ────────────────────────────────────────────────────────────────
+
 @Composable
 fun HomeScreen(navController: NavController, viewModel: HomeViewModel = hiltViewModel()) {
         val context = LocalContext.current
@@ -320,6 +629,8 @@ fun HomeScreen(navController: NavController, viewModel: HomeViewModel = hiltView
         val sugarGoalG by viewModel.sugarGoalG.collectAsStateWithLifecycle()
         val nickname by viewModel.nickname.collectAsStateWithLifecycle()
         val coachTip by viewModel.coachTip.collectAsStateWithLifecycle()
+        val mealBreakdown by viewModel.mealBreakdown.collectAsStateWithLifecycle()
+        val selectedMealType by viewModel.selectedMealType.collectAsStateWithLifecycle()
 
         if (showOnboarding) {
                 OnboardingDialog(
@@ -340,6 +651,13 @@ fun HomeScreen(navController: NavController, viewModel: HomeViewModel = hiltView
                 }
         }
 
+        fun navigateToLog(mealFilter: String? = null) {
+                navController.navigate(AppRoute.Log(mealFilter = mealFilter)) {
+                        popUpTo(navController.graph.startDestinationId) { saveState = true }
+                        launchSingleTop = false  // always re-create so filter is applied fresh
+                }
+        }
+
         val dateFormatted =
                 LocalDate.now()
                         .format(DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault()))
@@ -354,7 +672,7 @@ fun HomeScreen(navController: NavController, viewModel: HomeViewModel = hiltView
                 }
         }
 
-        val cardCount = 5
+        val cardCount = 6
         val cardVisible = remember { List(cardCount) { mutableStateOf(false) } }
         LaunchedEffect(Unit) {
                 for (i in 0 until cardCount) {
@@ -397,7 +715,7 @@ fun HomeScreen(navController: NavController, viewModel: HomeViewModel = hiltView
                                         goalValue = calorieGoal,
                                         label = "Calories Consumed",
                                         ringColor = progressColor(caloriesProgress, lowGood = true),
-                                        onClick = { navigateTo(AppRoute.Log) }
+                                onClick = { navigateToLog() }
                                 )
                                 ProgressRing(
                                         progress = stepsProgress,
@@ -659,8 +977,27 @@ fun HomeScreen(navController: NavController, viewModel: HomeViewModel = hiltView
                         }
                         Spacer(modifier = Modifier.height(16.dp))
 
+                        // Meal Visualization card
                         AnimatedVisibility(
                                 visible = cardVisible[2].value,
+                                enter =
+                                        fadeIn(tween(300)) +
+                                                slideInVertically(tween(300)) { it / 3 }
+                        ) {
+                                MealVisualizationCard(
+                                        breakdown = mealBreakdown,
+                                        selectedMeal = selectedMealType,
+                                        calorieGoal = calorieGoal,
+                                        onMealSelected = { viewModel.selectMealType(it) },
+                                        onMealDetailClick = { meal ->
+                                                navigateToLog(mealFilter = meal.name)
+                                        },
+                                )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        AnimatedVisibility(
+                                visible = cardVisible[3].value,
                                 enter =
                                         fadeIn(tween(300)) +
                                                 slideInVertically(tween(300)) { it / 3 }
@@ -747,7 +1084,7 @@ fun HomeScreen(navController: NavController, viewModel: HomeViewModel = hiltView
                         Spacer(modifier = Modifier.height(16.dp))
 
                         AnimatedVisibility(
-                                visible = cardVisible[3].value,
+                                visible = cardVisible[4].value,
                                 enter =
                                         fadeIn(tween(300)) +
                                                 slideInVertically(tween(300)) { it / 3 }
@@ -757,11 +1094,11 @@ fun HomeScreen(navController: NavController, viewModel: HomeViewModel = hiltView
                                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                         OutlinedButton(
-                                                onClick = { navigateTo(AppRoute.Log) },
+                                                onClick = { navigateToLog() },
                                                 modifier = Modifier.weight(1f)
                                         ) {
                                                 Text(
-                                                        text = "Log Food",
+                                                        text = "Diary",
                                                         fontFamily = interFamily,
                                                         fontWeight = FontWeight.Medium
                                                 )

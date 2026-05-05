@@ -32,6 +32,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import com.fittrack.app.theme.interFamily
 import com.fittrack.app.ui.home.HomeScreen
 import com.fittrack.app.ui.log.LogScreen
@@ -44,7 +45,7 @@ import kotlinx.serialization.Serializable
 // No more string literals — the compiler validates all routes.
 sealed interface AppRoute {
     @Serializable data object Home     : AppRoute
-    @Serializable data object Log      : AppRoute
+    @Serializable data class  Log(val mealFilter: String? = null) : AppRoute
     @Serializable data object Steps    : AppRoute
     @Serializable data object Settings : AppRoute
 }
@@ -56,10 +57,10 @@ data class NavItem(
 )
 
 private val navItems = listOf(
-    NavItem(AppRoute.Home,     "Home",     Icons.Filled.Home),
-    NavItem(AppRoute.Log,      "Log Food", Icons.Filled.Restaurant),
-    NavItem(AppRoute.Steps,    "Steps",    Icons.AutoMirrored.Outlined.DirectionsWalk),
-    NavItem(AppRoute.Settings, "Settings", Icons.Filled.Settings),
+    NavItem(AppRoute.Home,        "Home",     Icons.Filled.Home),
+    NavItem(AppRoute.Log(),       "Diary",    Icons.Filled.Restaurant),
+    NavItem(AppRoute.Steps,       "Steps",    Icons.AutoMirrored.Outlined.DirectionsWalk),
+    NavItem(AppRoute.Settings,    "Settings", Icons.Filled.Settings),
 )
 
 @Composable
@@ -139,7 +140,10 @@ fun FitTrackApp() {
             },
         ) {
             composable<AppRoute.Home>     { HomeScreen(navController, hiltViewModel()) }
-            composable<AppRoute.Log>      { LogScreen(hiltViewModel()) }
+            composable<AppRoute.Log>      { backStackEntry ->
+                val route = backStackEntry.toRoute<AppRoute.Log>()
+                LogScreen(hiltViewModel(), mealFilter = route.mealFilter)
+            }
             composable<AppRoute.Steps>    { StepsScreen(hiltViewModel()) }
             composable<AppRoute.Settings> { SettingsScreen(hiltViewModel()) }
         }

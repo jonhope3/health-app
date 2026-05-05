@@ -6,12 +6,14 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.fittrack.app.data.FoodRepository
 import com.fittrack.app.data.GoalsRepository
+import com.fittrack.app.data.MealType
 import com.fittrack.app.data.StepsRepository
 import com.fittrack.app.services.GeminiNanoService
 import com.fittrack.app.services.HealthConnectService
 import com.fittrack.app.services.PedometerService
 import com.fittrack.app.util.todayKey
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.LocalTime
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -56,6 +58,8 @@ class HomeViewModel @Inject constructor(
     private val _steps          = MutableStateFlow(0)
     private val _nickname       = MutableStateFlow("")
     private val _coachTip       = MutableStateFlow("")
+    private val _mealBreakdown  = MutableStateFlow<Map<MealType, Int>>(emptyMap())
+    private val _selectedMealType = MutableStateFlow(defaultMealTypeForTime())
 
     val calorieGoal:    StateFlow<Int>    = _calorieGoal.asStateFlow()
     val stepGoal:       StateFlow<Int>    = _stepGoal.asStateFlow()
@@ -72,6 +76,8 @@ class HomeViewModel @Inject constructor(
     val steps:          StateFlow<Int>    = _steps.asStateFlow()
     val nickname:       StateFlow<String> = _nickname.asStateFlow()
     val coachTip:       StateFlow<String> = _coachTip.asStateFlow()
+    val mealBreakdown:  StateFlow<Map<MealType, Int>> = _mealBreakdown.asStateFlow()
+    val selectedMealType: StateFlow<MealType> = _selectedMealType.asStateFlow()
 
     /** True once the user has dismissed the onboarding flow. */
     val onboardingDone: StateFlow<Boolean> = goalsRepository.onboardingDoneFlow
@@ -98,6 +104,9 @@ class HomeViewModel @Inject constructor(
             _carbsGoalG.value   = goalsRepository.getCarbsGoalG()
             _fatGoalG.value     = goalsRepository.getFatGoalG()
             _sugarGoalG.value   = goalsRepository.getSugarGoalG()
+
+            // Load per-meal calorie breakdown
+            _mealBreakdown.value = foodRepository.getMealTypeCalories()
 
             val weightLbs = goalsRepository.getWeightLbs().toDouble()
             val app = getApplication<Application>()
@@ -180,6 +189,11 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    /** User manually picks a meal type tab — overrides the time-based default. */
+    fun selectMealType(meal: MealType) {
+        _selectedMealType.value = meal
+    }
+
     fun markOnboardingComplete() {
         viewModelScope.launch { goalsRepository.setOnboardingCompleted() }
     }
@@ -187,5 +201,16 @@ class HomeViewModel @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         pedometerService.stop()
+    }
+
+    companion object {
+        /** Maps the current hour to the most contextually relevant meal type. */
+        fun defaultMealTypeForTime(): MealType = when (LocalTime.now().hour) {
+            in 5..10  -> MealType.BREAKFAST
+            in 11..14 -> MealType.LUNCH
+            in 15..16 -> MealType.SNACK
+            in 17..21 -> MealType.DINNER
+            else      -> MealType.SNACK
+        }
     }
 }
