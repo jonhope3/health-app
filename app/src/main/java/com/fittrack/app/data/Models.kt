@@ -1,13 +1,11 @@
 package com.fittrack.app.data
 
-import kotlinx.serialization.Serializable
+// ── Domain models (no Room annotations — pure data layer) ────────────────────
 
-@Serializable
 enum class MealType {
     BREAKFAST, LUNCH, DINNER, SNACK, OTHER
 }
 
-@Serializable
 data class DiaryItem(
     val id: String,
     val name: String,
@@ -19,10 +17,9 @@ data class DiaryItem(
     val timestamp: Long,
     val quantity: String? = null,
     val mealType: MealType = MealType.OTHER,
-    val foodItemId: String? = null
+    val foodItemId: String? = null,
 )
 
-@Serializable
 data class NutritionResult(
     val name: String,
     val calories: Int,
@@ -31,10 +28,9 @@ data class NutritionResult(
     val fat: Float,
     val sugar: Float = 0f,
     val servingDescription: String? = null,
-    val confidence: Float? = null
+    val confidence: Float? = null,
 )
 
-@Serializable
 data class FoodItem(
     val name: String,
     val calories: Int,
@@ -46,10 +42,9 @@ data class FoodItem(
     val usageCount: Int,
     val lastUsed: Long,
     val firstAdded: Long = lastUsed,
-    val usageHistory: List<Long> = emptyList()
+    val usageHistory: List<Long> = emptyList(),
 )
 
-@Serializable
 data class ParsedFoodItem(
     val name: String,
     val calories: Int,
@@ -58,5 +53,5 @@ data class ParsedFoodItem(
     val fat: Float,
     val sugar: Float = 0f,
     val quantity: String = "1 serving",
-    val confidence: Float? = null
+    val confidence: Float? = null,
 )

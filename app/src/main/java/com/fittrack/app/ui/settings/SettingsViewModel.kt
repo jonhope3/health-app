@@ -1,113 +1,82 @@
 package com.fittrack.app.ui.settings
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fittrack.app.data.GoalsRepository
+import com.fittrack.app.data.db.DiaryItemDao
+import com.fittrack.app.data.db.FoodItemDao
+import com.fittrack.app.data.db.StepsRecordDao
 import com.fittrack.app.services.GeminiNanoService
 import com.fittrack.app.services.HealthConnectService
+import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.LocalDate
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import android.content.Context
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
+/**
+ * A single row in the database explorer.
+ * [fields] is an ordered map of column name → display value for that row.
+ */
 data class DbEntry(
     val table: String,
-    val key: String,
-    val value: String
+    val fields: Map<String, String>,
 )
 
-class SettingsViewModel(application: Application) : AndroidViewModel(application) {
+@HiltViewModel
+class SettingsViewModel @Inject constructor(
+    private val goalsRepository: GoalsRepository,
+    private val diaryItemDao: DiaryItemDao,
+    private val foodItemDao: FoodItemDao,
+    private val stepsRecordDao: StepsRecordDao,
+    private val geminiNanoService: GeminiNanoService,
+) : ViewModel() {
 
-    private val goalsRepository = GoalsRepository(application)
     private val healthConnectService = HealthConnectService()
-    private val geminiNanoService = GeminiNanoService()
     private val json = Json { ignoreUnknownKeys = true }
 
     private val _healthConnectGranted = MutableStateFlow(false)
-    val healthConnectGranted: StateFlow<Boolean> = _healthConnectGranted.asStateFlow()
+    private val _calorieGoal          = MutableStateFlow("")
+    private val _stepGoal             = MutableStateFlow("")
+    private val _weightLbs            = MutableStateFlow("")
+    private val _heightFt             = MutableStateFlow("")
+    private val _heightIn             = MutableStateFlow("")
+    private val _age                  = MutableStateFlow("")
+    private val _nickname             = MutableStateFlow("")
+    private val _proteinGoal          = MutableStateFlow("")
+    private val _carbsGoal            = MutableStateFlow("")
+    private val _fatGoal              = MutableStateFlow("")
+    private val _sugarGoal            = MutableStateFlow("")
+    private val _isGeneratingMacros   = MutableStateFlow(false)
+    private val _macroGenerateError   = MutableStateFlow<String?>(null)
+    private val _geminiReady          = MutableStateFlow(false)
+    private val _dbEntries            = MutableStateFlow<List<DbEntry>>(emptyList())
 
-    private val _calorieGoal = MutableStateFlow("")
-    val calorieGoal: StateFlow<String> = _calorieGoal.asStateFlow()
-
-    private val _stepGoal = MutableStateFlow("")
-    val stepGoal: StateFlow<String> = _stepGoal.asStateFlow()
-
-    private val _weightLbs = MutableStateFlow("")
-    val weightLbs: StateFlow<String> = _weightLbs.asStateFlow()
-
-    private val _heightFt = MutableStateFlow("")
-    val heightFt: StateFlow<String> = _heightFt.asStateFlow()
-
-    private val _heightIn = MutableStateFlow("")
-    val heightIn: StateFlow<String> = _heightIn.asStateFlow()
-
-    private val _age = MutableStateFlow("")
-    val age: StateFlow<String> = _age.asStateFlow()
-
-    private val _nickname = MutableStateFlow("")
-    val nickname: StateFlow<String> = _nickname.asStateFlow()
-
-    // Macro goals (grams)
-    private val _proteinGoal = MutableStateFlow("")
-    val proteinGoal: StateFlow<String> = _proteinGoal.asStateFlow()
-
-    private val _carbsGoal = MutableStateFlow("")
-    val carbsGoal: StateFlow<String> = _carbsGoal.asStateFlow()
-
-    private val _fatGoal = MutableStateFlow("")
-    val fatGoal: StateFlow<String> = _fatGoal.asStateFlow()
-
-    private val _sugarGoal = MutableStateFlow("")
-    val sugarGoal: StateFlow<String> = _sugarGoal.asStateFlow()
-
-    private val _isGeneratingMacros = MutableStateFlow(false)
-    val isGeneratingMacros: StateFlow<Boolean> = _isGeneratingMacros.asStateFlow()
-
-    private val _macroGenerateError = MutableStateFlow<String?>(null)
-    val macroGenerateError: StateFlow<String?> = _macroGenerateError.asStateFlow()
-
-    private val _geminiReady = MutableStateFlow(false)
-    val geminiReady: StateFlow<Boolean> = _geminiReady.asStateFlow()
+    val healthConnectGranted: StateFlow<Boolean>      = _healthConnectGranted.asStateFlow()
+    val calorieGoal:          StateFlow<String>       = _calorieGoal.asStateFlow()
+    val stepGoal:             StateFlow<String>       = _stepGoal.asStateFlow()
+    val weightLbs:            StateFlow<String>       = _weightLbs.asStateFlow()
+    val heightFt:             StateFlow<String>       = _heightFt.asStateFlow()
+    val heightIn:             StateFlow<String>       = _heightIn.asStateFlow()
+    val age:                  StateFlow<String>       = _age.asStateFlow()
+    val nickname:             StateFlow<String>       = _nickname.asStateFlow()
+    val proteinGoal:          StateFlow<String>       = _proteinGoal.asStateFlow()
+    val carbsGoal:            StateFlow<String>       = _carbsGoal.asStateFlow()
+    val fatGoal:              StateFlow<String>       = _fatGoal.asStateFlow()
+    val sugarGoal:            StateFlow<String>       = _sugarGoal.asStateFlow()
+    val isGeneratingMacros:   StateFlow<Boolean>      = _isGeneratingMacros.asStateFlow()
+    val macroGenerateError:   StateFlow<String?>      = _macroGenerateError.asStateFlow()
+    val geminiReady:          StateFlow<Boolean>      = _geminiReady.asStateFlow()
+    val dbEntries:            StateFlow<List<DbEntry>> = _dbEntries.asStateFlow()
 
     init {
-        ensureDefaults()
         loadData()
-        checkHealthConnect()
-        viewModelScope.launch {
-            _geminiReady.value = geminiNanoService.initIfNeeded()
-        }
-    }
-
-    private fun ensureDefaults() {
-        val app = getApplication<Application>()
-        val p = app.getSharedPreferences("fittrack_goals", Context.MODE_PRIVATE)
-        if (!p.contains("calorie_goal")) {
-            p.edit()
-                .putInt("calorie_goal", 2000)
-                .putInt("step_goal", 10000)
-                .putFloat("weight_lbs", 160f)
-                .putFloat("height_in", 68f)
-                .apply()
-        }
-
-        val f = app.getSharedPreferences("fittrack_food", Context.MODE_PRIVATE)
-        if (f.getString("custom_foods", null) == null) {
-            f.edit().putString("custom_foods", "[]").apply()
-        }
-    }
-
-    private fun checkHealthConnect() {
-        viewModelScope.launch {
-            val app = getApplication<Application>()
-            if (healthConnectService.isAvailable(app)) {
-                _healthConnectGranted.value = healthConnectService.initialize(app)
-            }
-        }
+        viewModelScope.launch { _geminiReady.value = geminiNanoService.initIfNeeded() }
     }
 
     fun onHealthConnectResult(granted: Set<String>) {
@@ -115,146 +84,250 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun loadData() {
-        _calorieGoal.value = goalsRepository.getCalorieGoal().toString()
-        _stepGoal.value = goalsRepository.getStepGoal().toString()
-        _weightLbs.value = goalsRepository.getWeightLbs().let { fmtNum(it) }
-        val totalInches = goalsRepository.getHeightIn()
-        _heightFt.value = (totalInches / 12).toInt().toString()
-        _heightIn.value = (totalInches % 12).toInt().toString()
-        _age.value = goalsRepository.getAge().toString()
-        _nickname.value = goalsRepository.getNickname()
-        _proteinGoal.value = goalsRepository.getProteinGoalG().toString()
-        _carbsGoal.value = goalsRepository.getCarbsGoalG().toString()
-        _fatGoal.value = goalsRepository.getFatGoalG().toString()
-        _sugarGoal.value = goalsRepository.getSugarGoalG().toString()
+        viewModelScope.launch {
+            _calorieGoal.value = goalsRepository.getCalorieGoal().toString()
+            _stepGoal.value    = goalsRepository.getStepGoal().toString()
+            _weightLbs.value   = formatFloat(goalsRepository.getWeightLbs())
+            _age.value         = goalsRepository.getAge().toString()
+            _nickname.value    = goalsRepository.getNickname()
+            _proteinGoal.value = goalsRepository.getProteinGoalG().toString()
+            _carbsGoal.value   = goalsRepository.getCarbsGoalG().toString()
+            _fatGoal.value     = goalsRepository.getFatGoalG().toString()
+            _sugarGoal.value   = goalsRepository.getSugarGoalG().toString()
+
+            val totalInches = goalsRepository.getHeightIn()
+            _heightFt.value = (totalInches / 12).toInt().toString()
+            _heightIn.value = (totalInches % 12).toInt().toString()
+        }
     }
 
-    fun setCalorieGoal(v: String) { _calorieGoal.value = v.filter { it.isDigit() } }
-    fun setStepGoal(v: String) { _stepGoal.value = v.filter { it.isDigit() } }
-    fun setWeightLbs(v: String) { _weightLbs.value = v.filter { it.isDigit() || it == '.' } }
-    fun setHeightFt(v: String) { _heightFt.value = v.filter { it.isDigit() } }
-    fun setHeightIn(v: String) { _heightIn.value = v.filter { it.isDigit() } }
-    fun setAge(v: String) { _age.value = v.filter { it.isDigit() } }
-    fun setNickname(v: String) { _nickname.value = v }
-    fun setProteinGoal(v: String) { _proteinGoal.value = v.filter { it.isDigit() } }
-    fun setCarbsGoal(v: String) { _carbsGoal.value = v.filter { it.isDigit() } }
-    fun setFatGoal(v: String) { _fatGoal.value = v.filter { it.isDigit() } }
-    fun setSugarGoal(v: String) { _sugarGoal.value = v.filter { it.isDigit() } }
+    // ── Field setters — filter to valid character sets ────────────────────────
+
+    fun setCalorieGoal(v: String) { _calorieGoal.value = v.filter(Char::isDigit) }
+    fun setStepGoal(v: String)    { _stepGoal.value    = v.filter(Char::isDigit) }
+    fun setWeightLbs(v: String)   { _weightLbs.value   = v.filter { it.isDigit() || it == '.' } }
+    fun setHeightFt(v: String)    { _heightFt.value    = v.filter(Char::isDigit) }
+    fun setHeightIn(v: String)    { _heightIn.value    = v.filter(Char::isDigit) }
+    fun setAge(v: String)         { _age.value         = v.filter(Char::isDigit) }
+    fun setNickname(v: String)    { _nickname.value    = v }
+    fun setProteinGoal(v: String) { _proteinGoal.value = v.filter(Char::isDigit) }
+    fun setCarbsGoal(v: String)   { _carbsGoal.value   = v.filter(Char::isDigit) }
+    fun setFatGoal(v: String)     { _fatGoal.value     = v.filter(Char::isDigit) }
+    fun setSugarGoal(v: String)   { _sugarGoal.value   = v.filter(Char::isDigit) }
+
+    // ── Persist ───────────────────────────────────────────────────────────────
 
     fun save() {
-        _calorieGoal.value.toIntOrNull()?.let { if (it in 500..10000) goalsRepository.setCalorieGoal(it) }
-        _stepGoal.value.toIntOrNull()?.let { if (it in 100..200000) goalsRepository.setStepGoal(it) }
-        _weightLbs.value.toFloatOrNull()?.let { if (it in 50f..700f) goalsRepository.setWeightLbs(it) }
-        val ft = _heightFt.value.toIntOrNull() ?: 0
-        val inches = _heightIn.value.toIntOrNull() ?: 0
-        val totalInches = ft * 12f + inches
-        if (totalInches in 36f..96f) goalsRepository.setHeightIn(totalInches)
-        _age.value.toIntOrNull()?.let { if (it in 1..120) goalsRepository.setAge(it) }
-        val nick = _nickname.value.trim()
-        if (nick.isNotEmpty()) goalsRepository.setNickname(nick)
+        viewModelScope.launch {
+            _calorieGoal.value.toIntOrNull()?.takeIf { it in 500..10000 }
+                ?.let { goalsRepository.setCalorieGoal(it) }
+            _stepGoal.value.toIntOrNull()?.takeIf { it in 100..200000 }
+                ?.let { goalsRepository.setStepGoal(it) }
+            _weightLbs.value.toFloatOrNull()?.takeIf { it in 50f..700f }
+                ?.let { goalsRepository.setWeightLbs(it) }
+            val totalInches = (_heightFt.value.toIntOrNull() ?: 0) * 12f +
+                              (_heightIn.value.toIntOrNull() ?: 0)
+            if (totalInches in 36f..96f) goalsRepository.setHeightIn(totalInches)
+            _age.value.toIntOrNull()?.takeIf { it in 1..120 }
+                ?.let { goalsRepository.setAge(it) }
+            _nickname.value.trim().takeIf { it.isNotEmpty() }
+                ?.let { goalsRepository.setNickname(it) }
+        }
     }
 
     fun saveMacroGoals() {
-        _proteinGoal.value.toIntOrNull()?.let { if (it in 0..500) goalsRepository.setProteinGoalG(it) }
-        _carbsGoal.value.toIntOrNull()?.let { if (it in 0..1000) goalsRepository.setCarbsGoalG(it) }
-        _fatGoal.value.toIntOrNull()?.let { if (it in 0..500) goalsRepository.setFatGoalG(it) }
-        _sugarGoal.value.toIntOrNull()?.let { if (it in 0..500) goalsRepository.setSugarGoalG(it) }
+        viewModelScope.launch {
+            _proteinGoal.value.toIntOrNull()?.takeIf { it in 0..500 }
+                ?.let { goalsRepository.setProteinGoalG(it) }
+            _carbsGoal.value.toIntOrNull()?.takeIf { it in 0..1000 }
+                ?.let { goalsRepository.setCarbsGoalG(it) }
+            _fatGoal.value.toIntOrNull()?.takeIf { it in 0..500 }
+                ?.let { goalsRepository.setFatGoalG(it) }
+            _sugarGoal.value.toIntOrNull()?.takeIf { it in 0..500 }
+                ?.let { goalsRepository.setSugarGoalG(it) }
+        }
     }
 
     fun generateAiMacroGoals() {
         viewModelScope.launch {
             _isGeneratingMacros.value = true
             _macroGenerateError.value = null
-            try {
-                if (!geminiNanoService.initIfNeeded()) {
-                    _macroGenerateError.value = "On-device AI not available — set goals manually"
-                    _isGeneratingMacros.value = false
-                    return@launch
-                }
 
-                val cals = _calorieGoal.value.toIntOrNull() ?: goalsRepository.getCalorieGoal()
+            if (!geminiNanoService.initIfNeeded()) {
+                _macroGenerateError.value = "On-device AI not available — set goals manually"
+                _isGeneratingMacros.value = false
+                return@launch
+            }
+
+            runCatching {
+                val cals      = _calorieGoal.value.toIntOrNull() ?: goalsRepository.getCalorieGoal()
                 val weightLbs = _weightLbs.value.toFloatOrNull() ?: goalsRepository.getWeightLbs()
-                val heightFt = _heightFt.value.toIntOrNull() ?: 0
-                val heightIn = _heightIn.value.toIntOrNull() ?: 0
-                val totalIn = heightFt * 12 + heightIn
-                val age = _age.value.toIntOrNull() ?: goalsRepository.getAge()
+                val totalIn   = (_heightFt.value.toIntOrNull() ?: 0) * 12 +
+                                (_heightIn.value.toIntOrNull() ?: 0)
+                val age       = _age.value.toIntOrNull() ?: goalsRepository.getAge()
 
-                val prompt = """<instruction>
-You are a registered dietitian. Recommend daily macro intake goals for this user. Return ONLY a JSON object with integer values in grams: protein, carbs, fat, sugar. Base recommendations on standard nutrition guidelines (Dietary Guidelines for Americans, ISSN protein recommendations). Return ONLY the JSON object, no other text.
-</instruction>
-
-<user_profile>
-Age: $age years
-Weight: ${weightLbs.toInt()} lbs
-Height: ${totalIn} inches
-Daily calorie goal: $cals kcal
-</user_profile>
-
-<example_output>
-{"protein":120,"carbs":225,"fat":65,"sugar":50}
-</example_output>"""
-
+                val prompt = buildMacroPrompt(cals, weightLbs.toInt(), totalIn, age)
                 val response = geminiNanoService.generateContent(prompt)
+
                 if (response.isBlank()) {
                     _macroGenerateError.value = "No response — try again"
-                    _isGeneratingMacros.value = false
-                    return@launch
+                    return@runCatching
                 }
 
-                val jsonMatch = Regex("""\{[\s\S]*?\}""").find(response)
-                val obj = jsonMatch?.let {
-                    try { json.parseToJsonElement(it.value).jsonObject } catch (_: Exception) { null }
-                }
+                val obj = Regex("""\{[\s\S]*?}""").find(response)
+                    ?.let { runCatching { json.parseToJsonElement(it.value).jsonObject }.getOrNull() }
 
                 if (obj == null) {
-                    _macroGenerateError.value = "Couldn't parse response — try again"
-                    _isGeneratingMacros.value = false
-                    return@launch
+                    _macroGenerateError.value = "Couldn't parse AI response — try again"
+                    return@runCatching
                 }
 
-                obj["protein"]?.jsonPrimitive?.content?.toDoubleOrNull()?.toInt()?.let { _proteinGoal.value = it.toString() }
-                obj["carbs"]?.jsonPrimitive?.content?.toDoubleOrNull()?.toInt()?.let { _carbsGoal.value = it.toString() }
-                obj["fat"]?.jsonPrimitive?.content?.toDoubleOrNull()?.toInt()?.let { _fatGoal.value = it.toString() }
-                obj["sugar"]?.jsonPrimitive?.content?.toDoubleOrNull()?.toInt()?.let { _sugarGoal.value = it.toString() }
-
-                // Auto-save immediately after generation
+                val intField: (String) -> Int? = { key ->
+                    obj[key]?.jsonPrimitive?.content?.toDoubleOrNull()?.toInt()
+                }
+                intField("protein")?.let { _proteinGoal.value = it.toString() }
+                intField("carbs")?.let   { _carbsGoal.value   = it.toString() }
+                intField("fat")?.let     { _fatGoal.value     = it.toString() }
+                intField("sugar")?.let   { _sugarGoal.value   = it.toString() }
                 saveMacroGoals()
-
-            } catch (e: Exception) {
+            }.onFailure { e ->
                 _macroGenerateError.value = "Error: ${e.message}"
             }
+
             _isGeneratingMacros.value = false
         }
     }
 
-    private fun fmtNum(v: Float): String {
-        return if (v == v.toLong().toFloat()) v.toLong().toString()
-        else "%.1f".format(v)
-    }
-
+    /**
+     * Clears all Room tables and DataStore preferences, then resets the UI fields.
+     * Intended for the "Reset & Start Fresh" action.
+     */
     fun nukeDb() {
-        val app = getApplication<Application>()
-        app.getSharedPreferences("fittrack_food", Context.MODE_PRIVATE).edit().clear().apply()
-        app.getSharedPreferences("fittrack_goals", Context.MODE_PRIVATE).edit().clear().apply()
-        app.getSharedPreferences("fittrack_steps", Context.MODE_PRIVATE).edit().clear().apply()
-        ensureDefaults()
-        loadData()
+        viewModelScope.launch {
+            goalsRepository.clearAll()
+            // clearAllTables() runs within Room's executor on a background thread
+            diaryItemDao.deleteAll()
+            foodItemDao.deleteAll()
+            stepsRecordDao.deleteAll()
+            loadData()
+        }
     }
 
-    fun getDbOverview(): List<DbEntry> {
-        val app = getApplication<Application>()
-        val list = mutableListOf<DbEntry>()
-        listOf("fittrack_food", "fittrack_goals", "fittrack_steps").forEach { prefName ->
-            val p = app.getSharedPreferences(prefName, Context.MODE_PRIVATE)
-            val allEntries = p.all
-            if (allEntries.isEmpty()) {
-                list.add(DbEntry(prefName, "(empty)", "No data records found in this table"))
+    /**
+     * Populates [dbEntries] with a snapshot of the last 30 days from each Room table
+     * and all DataStore goal values. Called when the user opens the DB Explorer.
+     */
+    fun loadDbOverview() {
+        viewModelScope.launch {
+            val recentDates = List(30) { i ->
+                LocalDate.now().minusDays(i.toLong()).toString()
+            }
+            val list = mutableListOf<DbEntry>()
+
+            // diary_item — most recent 30 days
+            val allDiary = recentDates.flatMap { diaryItemDao.getDiaryForDate(it) }
+            if (allDiary.isEmpty()) {
+                list += DbEntry("diary_item", mapOf("(empty)" to "No diary entries in the last 30 days"))
             } else {
-                allEntries.forEach { (key, value) ->
-                    list.add(DbEntry(prefName, key, value.toString()))
+                allDiary.forEach { e ->
+                    list += DbEntry(
+                        table  = "diary_item",
+                        fields = linkedMapOf(
+                            "date"     to e.date,
+                            "name"     to e.name,
+                            "calories" to "${e.calories} kcal",
+                            "protein"  to "${e.protein}g",
+                            "carbs"    to "${e.carbs}g",
+                            "fat"      to "${e.fat}g",
+                            "meal"     to e.mealType.name.lowercase(),
+                        ),
+                    )
                 }
             }
+
+            // food_item
+            val foods = foodItemDao.getAll()
+            if (foods.isEmpty()) {
+                list += DbEntry("food_item", mapOf("(empty)" to "No custom food items saved"))
+            } else {
+                foods.forEach { f ->
+                    list += DbEntry(
+                        table  = "food_item",
+                        fields = linkedMapOf(
+                            "name"     to f.name,
+                            "calories" to "${f.calories} kcal",
+                            "protein"  to "${f.protein}g",
+                            "carbs"    to "${f.carbs}g",
+                            "fat"      to "${f.fat}g",
+                            "used"     to "${f.usageCount}×",
+                        ),
+                    )
+                }
+            }
+
+            // steps_record
+            val steps = stepsRecordDao.getForDates(recentDates)
+            if (steps.isEmpty()) {
+                list += DbEntry("steps_record", mapOf("(empty)" to "No step records found"))
+            } else {
+                steps.forEach { s ->
+                    list += DbEntry(
+                        table  = "steps_record",
+                        fields = linkedMapOf(
+                            "date"  to s.date,
+                            "steps" to s.steps.toString(),
+                        ),
+                    )
+                }
+            }
+
+            // DataStore goals
+            val goals = linkedMapOf(
+                "calorie_goal" to goalsRepository.getCalorieGoal().toString(),
+                "step_goal"    to goalsRepository.getStepGoal().toString(),
+                "weight_lbs"   to goalsRepository.getWeightLbs().toString(),
+                "height_in"    to goalsRepository.getHeightIn().toString(),
+                "age"          to goalsRepository.getAge().toString(),
+                "nickname"     to goalsRepository.getNickname().ifBlank { "(not set)" },
+                "protein_goal" to goalsRepository.getProteinGoalG().toString(),
+                "carbs_goal"   to goalsRepository.getCarbsGoalG().toString(),
+                "fat_goal"     to goalsRepository.getFatGoalG().toString(),
+                "sugar_goal"   to goalsRepository.getSugarGoalG().toString(),
+            )
+            // Each goal key is its own row with "key" and "value" columns
+            goals.forEach { (k, v) ->
+                list += DbEntry(
+                    table  = "datastore_goals",
+                    fields = linkedMapOf("key" to k, "value" to v),
+                )
+            }
+
+            _dbEntries.value = list.sortedBy { it.table }
         }
-        return list.sortedBy { it.table }
     }
+
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    private fun formatFloat(v: Float): String =
+        if (v == v.toLong().toFloat()) v.toLong().toString() else "%.1f".format(v)
+
+    private fun buildMacroPrompt(cals: Int, weightLbs: Int, heightIn: Int, age: Int) = """
+        <instruction>
+        You are a registered dietitian. Recommend daily macro intake goals for this user.
+        Return ONLY a JSON object with integer values in grams: protein, carbs, fat, sugar.
+        Base recommendations on the Dietary Guidelines for Americans and ISSN protein recommendations.
+        Return ONLY the JSON object — no other text.
+        </instruction>
+
+        <user_profile>
+        Age: $age years
+        Weight: $weightLbs lbs
+        Height: $heightIn inches
+        Daily calorie goal: $cals kcal
+        </user_profile>
+
+        <example_output>
+        {"protein":120,"carbs":225,"fat":65,"sugar":50}
+        </example_output>
+    """.trimIndent()
 }

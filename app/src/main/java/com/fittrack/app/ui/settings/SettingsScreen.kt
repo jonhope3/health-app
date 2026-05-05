@@ -12,6 +12,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -66,7 +67,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
     var editingNickname by remember { mutableStateOf(false) }
     var showNukeConfirm by remember { mutableStateOf(false) }
     var showDbViewer by remember { mutableStateOf(false) }
-    var dbEntries by remember { mutableStateOf<List<DbEntry>>(emptyList()) }
+    val dbEntries by viewModel.dbEntries.collectAsState()
     var selectedEntry by remember { mutableStateOf<DbEntry?>(null) }
 
     val hcAvailability = HealthConnectClient.getSdkStatus(context)
@@ -833,7 +834,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
             ) {
                 OutlinedButton(
                         onClick = {
-                            dbEntries = viewModel.getDbOverview()
+                            viewModel.loadDbOverview()
                             showDbViewer = true
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -892,7 +893,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
     if (showDbViewer) {
         androidx.compose.ui.window.Dialog(onDismissRequest = { showDbViewer = false }) {
             Surface(
-                    modifier = Modifier.fillMaxWidth().fillMaxHeight(0.85f),
+                    modifier = Modifier.fillMaxWidth().fillMaxHeight(0.9f),
                     shape = RoundedCornerShape(16.dp),
                     color = AppColors.surface
             ) {
@@ -901,75 +902,144 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                             "Database Explorer",
                             fontFamily = interFamily,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp
+                            fontSize = 20.sp,
+                            color = AppColors.textPrimary
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
+
                     LazyColumn(modifier = Modifier.weight(1f)) {
                         val grouped = dbEntries.groupBy { it.table }
-                        grouped.forEach { (table, entries) ->
+                        grouped.forEach { (table, rows) ->
+
+                            // Table header chip
                             item {
-                                Surface(
-                                        color = AppColors.primary.copy(alpha = 0.1f),
-                                        modifier =
-                                                Modifier.fillMaxWidth()
-                                                        .padding(top = 16.dp, bottom = 4.dp),
-                                        shape = RoundedCornerShape(4.dp)
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
+                                    Surface(
+                                            color = AppColors.primary.copy(alpha = 0.12f),
+                                            shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Text(
+                                                text = table.replace("_", " ").uppercase(),
+                                                modifier = Modifier.padding(
+                                                        horizontal = 10.dp, vertical = 4.dp
+                                                ),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = AppColors.primary,
+                                                letterSpacing = 1.sp,
+                                                fontFamily = interFamily
+                                        )
+                                    }
                                     Text(
-                                            text = table.uppercase(),
-                                            modifier =
-                                                    Modifier.padding(
-                                                            horizontal = 8.dp,
-                                                            vertical = 4.dp
-                                                    ),
+                                            text = "${rows.size} row${if (rows.size != 1) "s" else ""}",
                                             fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = AppColors.primary,
-                                            letterSpacing = 1.sp
+                                            color = AppColors.textSecondary,
+                                            fontFamily = interFamily
                                     )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                            }
+
+                            // Derive column headers from the first row's keys
+                            val columns = rows.firstOrNull()?.fields?.keys?.toList() ?: emptyList()
+                            val isEmpty = columns.size == 1 && rows.firstOrNull()?.fields?.containsKey("(empty)") == true
+
+                            if (!isEmpty) {
+                                // Column header row
+                                item {
+                                    Row(
+                                            modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .background(AppColors.surfaceVariant, RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+                                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    ) {
+                                        columns.forEach { col ->
+                                            Text(
+                                                    text = col.uppercase(),
+                                                    modifier = Modifier.weight(1f),
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = AppColors.textSecondary,
+                                                    letterSpacing = 0.8.sp,
+                                                    fontFamily = interFamily,
+                                                    maxLines = 1,
+                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Clip
+                                            )
+                                        }
+                                    }
                                 }
                             }
-                            items(entries) { entry ->
-                                Column(
-                                        modifier =
-                                                Modifier.fillMaxWidth()
-                                                        .combinedClickable(
-                                                                onClick = {},
-                                                                onLongClick = {
-                                                                    if (entry.key != "(empty)")
-                                                                            selectedEntry = entry
-                                                                }
-                                                        )
-                                                        .padding(vertical = 10.dp)
-                                ) {
-                                    Text(
-                                            entry.key,
-                                            fontFamily = interFamily,
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 14.sp,
-                                            color =
-                                                    if (entry.key == "(empty)")
-                                                            AppColors.textSecondary
-                                                    else AppColors.textPrimary
-                                    )
-                                    Text(
-                                            entry.value,
-                                            fontFamily =
-                                                    androidx.compose.ui.text.font.FontFamily
-                                                            .Monospace,
-                                            fontSize = 12.sp,
-                                            maxLines = 1,
-                                            overflow =
-                                                    androidx.compose.ui.text.style.TextOverflow
-                                                            .Ellipsis,
-                                            color = AppColors.textSecondary
-                                    )
+
+                            // Data rows
+                            itemsIndexed(rows) { idx, entry ->
+                                if (isEmpty) {
+                                    // Empty-state placeholder
+                                    Box(
+                                            modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .background(
+                                                            AppColors.surfaceVariant.copy(alpha = 0.5f),
+                                                            RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp)
+                                                    )
+                                                    .padding(horizontal = 10.dp, vertical = 14.dp),
+                                            contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                                text = entry.fields.values.firstOrNull() ?: "Empty",
+                                                fontFamily = interFamily,
+                                                fontSize = 13.sp,
+                                                color = AppColors.textSecondary
+                                        )
+                                    }
+                                } else {
+                                    val isLast = idx == rows.lastIndex
+                                    val rowBg = if (idx % 2 == 0) AppColors.surface
+                                                else AppColors.surfaceVariant.copy(alpha = 0.4f)
+                                    val bottomShape = if (isLast) RoundedCornerShape(
+                                            bottomStart = 8.dp, bottomEnd = 8.dp
+                                    ) else RoundedCornerShape(0.dp)
+
+                                    Row(
+                                            modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .background(rowBg, bottomShape)
+                                                    .combinedClickable(
+                                                            onClick = {},
+                                                            onLongClick = { selectedEntry = entry }
+                                                    )
+                                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        columns.forEach { col ->
+                                            val cellValue = entry.fields[col] ?: ""
+                                            Text(
+                                                    text = cellValue,
+                                                    modifier = Modifier.weight(1f),
+                                                    fontFamily = interFamily,
+                                                    fontSize = 12.sp,
+                                                    color = AppColors.textPrimary,
+                                                    maxLines = 1,
+                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                    if (!isLast) {
+                                        HorizontalDivider(
+                                                color = AppColors.border.copy(alpha = 0.3f),
+                                                thickness = 0.5.dp
+                                        )
+                                    }
                                 }
-                                HorizontalDivider(color = AppColors.border.copy(alpha = 0.5f))
                             }
                         }
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Spacer(modifier = Modifier.height(12.dp))
                     Button(onClick = { showDbViewer = false }, modifier = Modifier.fillMaxWidth()) {
                         Text("Close", fontFamily = interFamily)
                     }
@@ -978,40 +1048,43 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
         }
     }
 
+    // Long-press detail popup — shows all fields for the selected row
     if (selectedEntry != null) {
         AlertDialog(
                 onDismissRequest = { selectedEntry = null },
                 title = {
-                    Text("Record Details", fontFamily = interFamily, fontWeight = FontWeight.Bold)
+                    Text(
+                            text = selectedEntry!!.table.replace("_", " ").replaceFirstChar { it.uppercase() },
+                            fontFamily = interFamily,
+                            fontWeight = FontWeight.Bold
+                    )
                 },
                 text = {
-                    Column {
-                        Text(
-                                "Table: ${selectedEntry!!.table}",
-                                fontSize = 12.sp,
-                                color = AppColors.textSecondary
-                        )
-                        Text(
-                                "Key: ${selectedEntry!!.key}",
-                                fontSize = 12.sp,
-                                color = AppColors.textSecondary,
-                                fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Box(
-                                modifier =
-                                        Modifier.fillMaxWidth()
-                                                .background(
-                                                        Color.Black.copy(alpha = 0.05f),
-                                                        RoundedCornerShape(8.dp)
-                                                )
-                                                .padding(12.dp)
-                        ) {
-                            Text(
-                                    selectedEntry!!.value,
-                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                    fontSize = 12.sp
-                            )
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        selectedEntry!!.fields.forEach { (col, value) ->
+                            Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                        text = col,
+                                        fontFamily = interFamily,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = AppColors.textSecondary,
+                                        modifier = Modifier.weight(0.4f)
+                                )
+                                Text(
+                                        text = value,
+                                        fontFamily = interFamily,
+                                        fontSize = 12.sp,
+                                        color = AppColors.textPrimary,
+                                        modifier = Modifier.weight(0.6f),
+                                        maxLines = 2,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                            }
+                            HorizontalDivider(color = AppColors.border.copy(alpha = 0.4f), thickness = 0.5.dp)
                         }
                     }
                 },

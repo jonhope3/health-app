@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -93,10 +94,10 @@ fun FitTrackApp() {
             popEnterTransition = { fadeIn(animationSpec = tween(200)) },
             popExitTransition = { fadeOut(animationSpec = tween(200)) }
         ) {
-            composable(Screen.Home.route) { HomeScreen(navController) }
-            composable(Screen.Log.route) { LogScreen() }
-            composable(Screen.Steps.route) { StepsScreen() }
-            composable(Screen.Settings.route) { SettingsScreen() }
+            composable(Screen.Home.route)     { HomeScreen(navController, hiltViewModel()) }
+            composable(Screen.Log.route)      { LogScreen(hiltViewModel()) }
+            composable(Screen.Steps.route)    { StepsScreen(hiltViewModel()) }
+            composable(Screen.Settings.route) { SettingsScreen(hiltViewModel()) }
         }
     }
 }

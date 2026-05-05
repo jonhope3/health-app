@@ -73,6 +73,7 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private data class Particle(
         var x: Float,
@@ -149,17 +150,21 @@ private fun OnboardingDialog(goalsRepository: GoalsRepository, onComplete: () ->
                         "How many steps do you want to hit daily?"
                 )
 
+        val scope = androidx.compose.runtime.rememberCoroutineScope()
+
         fun saveAndFinish() {
                 val name = nameText.trim()
-                if (name.isNotBlank()) goalsRepository.setNickname(name)
-                calorieText.toIntOrNull()?.let {
-                        if (it in 500..10000) goalsRepository.setCalorieGoal(it)
+                scope.launch {
+                    if (name.isNotBlank()) goalsRepository.setNickname(name)
+                    calorieText.toIntOrNull()?.let {
+                            if (it in 500..10000) goalsRepository.setCalorieGoal(it)
+                    }
+                    stepText.toIntOrNull()?.let {
+                            if (it in 100..200000) goalsRepository.setStepGoal(it)
+                    }
+                    goalsRepository.setOnboardingCompleted()
+                    onComplete()
                 }
-                stepText.toIntOrNull()?.let {
-                        if (it in 100..200000) goalsRepository.setStepGoal(it)
-                }
-                goalsRepository.setOnboardingCompleted()
-                onComplete()
         }
 
         fun skipStep() {
@@ -305,7 +310,10 @@ private fun OnboardingDialog(goalsRepository: GoalsRepository, onComplete: () ->
 fun HomeScreen(navController: NavController, viewModel: HomeViewModel = viewModel()) {
         val context = LocalContext.current
         val goalsRepository = remember { GoalsRepository(context) }
-        var showOnboarding by remember { mutableStateOf(!goalsRepository.hasCompletedOnboarding()) }
+        var showOnboarding by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) {
+            showOnboarding = !goalsRepository.hasCompletedOnboarding()
+        }
 
         val calorieGoal by viewModel.calorieGoal.collectAsState()
         val stepGoal by viewModel.stepGoal.collectAsState()

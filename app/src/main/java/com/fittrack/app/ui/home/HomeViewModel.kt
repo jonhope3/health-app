@@ -11,81 +11,65 @@ import com.fittrack.app.services.GeminiNanoService
 import com.fittrack.app.services.HealthConnectService
 import com.fittrack.app.services.PedometerService
 import com.fittrack.app.util.todayKey
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class HomeViewModel
-@JvmOverloads
-constructor(
-        application: Application,
-        private val random: kotlin.random.Random = kotlin.random.Random.Default
+@HiltViewModel
+class HomeViewModel @Inject constructor(
+    application: Application,
+    private val goalsRepository: GoalsRepository,
+    private val foodRepository: FoodRepository,
+    private val stepsRepository: StepsRepository,
+    private val geminiNanoService: GeminiNanoService,
 ) : AndroidViewModel(application) {
 
-    private val goalsRepository = GoalsRepository(application)
-    private val foodRepository = FoodRepository(application)
-    private val stepsRepository = StepsRepository(application)
     private val healthConnectService = HealthConnectService()
     private val pedometerService = PedometerService()
-    private val geminiNanoService = GeminiNanoService()
 
-    private val coachTipUseCase =
-            CoachTipUseCase(
-                    foodRepository = foodRepository,
-                    stepsRepository = stepsRepository,
-                    geminiNanoService = geminiNanoService,
-                    random = random
-            )
+    private val coachTipUseCase = CoachTipUseCase(
+        foodRepository    = foodRepository,
+        stepsRepository   = stepsRepository,
+        geminiNanoService = geminiNanoService,
+    )
 
-    private var coachTipJob: kotlinx.coroutines.Job? = null
+    private var coachTipJob: Job? = null
 
-    private val _calorieGoal = MutableStateFlow(2000)
-    val calorieGoal: StateFlow<Int> = _calorieGoal.asStateFlow()
-
-    private val _stepGoal = MutableStateFlow(10000)
-    val stepGoal: StateFlow<Int> = _stepGoal.asStateFlow()
-
-    private val _caloriesEaten = MutableStateFlow(0)
-    val caloriesEaten: StateFlow<Int> = _caloriesEaten.asStateFlow()
-
-    private val _protein = MutableStateFlow(0f)
-    val protein: StateFlow<Float> = _protein.asStateFlow()
-
-    private val _carbs = MutableStateFlow(0f)
-    val carbs: StateFlow<Float> = _carbs.asStateFlow()
-
-    private val _fat = MutableStateFlow(0f)
-    val fat: StateFlow<Float> = _fat.asStateFlow()
-
-    private val _sugar = MutableStateFlow(0f)
-    val sugar: StateFlow<Float> = _sugar.asStateFlow()
-
+    private val _calorieGoal    = MutableStateFlow(2000)
+    private val _stepGoal       = MutableStateFlow(10000)
+    private val _caloriesEaten  = MutableStateFlow(0)
+    private val _protein        = MutableStateFlow(0f)
+    private val _carbs          = MutableStateFlow(0f)
+    private val _fat            = MutableStateFlow(0f)
+    private val _sugar          = MutableStateFlow(0f)
     private val _caloriesBurned = MutableStateFlow(0)
-    val caloriesBurned: StateFlow<Int> = _caloriesBurned.asStateFlow()
+    private val _proteinGoalG   = MutableStateFlow(100)
+    private val _carbsGoalG     = MutableStateFlow(250)
+    private val _fatGoalG       = MutableStateFlow(65)
+    private val _sugarGoalG     = MutableStateFlow(50)
+    private val _steps          = MutableStateFlow(0)
+    private val _nickname       = MutableStateFlow("")
+    private val _coachTip       = MutableStateFlow("")
 
-    // Macro goals in grams (from Settings)
-    private val _proteinGoalG = MutableStateFlow(100)
-    val proteinGoalG: StateFlow<Int> = _proteinGoalG.asStateFlow()
-
-    private val _carbsGoalG = MutableStateFlow(250)
-    val carbsGoalG: StateFlow<Int> = _carbsGoalG.asStateFlow()
-
-    private val _fatGoalG = MutableStateFlow(65)
-    val fatGoalG: StateFlow<Int> = _fatGoalG.asStateFlow()
-
-    private val _sugarGoalG = MutableStateFlow(50)
-    val sugarGoalG: StateFlow<Int> = _sugarGoalG.asStateFlow()
-
-    private val _steps = MutableStateFlow(0)
-    val steps: StateFlow<Int> = _steps.asStateFlow()
-
-    private val _nickname = MutableStateFlow("")
-    val nickname: StateFlow<String> = _nickname.asStateFlow()
-
-    private val _coachTip = MutableStateFlow("")
-    val coachTip: StateFlow<String> = _coachTip.asStateFlow()
+    val calorieGoal:    StateFlow<Int>    = _calorieGoal.asStateFlow()
+    val stepGoal:       StateFlow<Int>    = _stepGoal.asStateFlow()
+    val caloriesEaten:  StateFlow<Int>    = _caloriesEaten.asStateFlow()
+    val protein:        StateFlow<Float>  = _protein.asStateFlow()
+    val carbs:          StateFlow<Float>  = _carbs.asStateFlow()
+    val fat:            StateFlow<Float>  = _fat.asStateFlow()
+    val sugar:          StateFlow<Float>  = _sugar.asStateFlow()
+    val caloriesBurned: StateFlow<Int>    = _caloriesBurned.asStateFlow()
+    val proteinGoalG:   StateFlow<Int>    = _proteinGoalG.asStateFlow()
+    val carbsGoalG:     StateFlow<Int>    = _carbsGoalG.asStateFlow()
+    val fatGoalG:       StateFlow<Int>    = _fatGoalG.asStateFlow()
+    val sugarGoalG:     StateFlow<Int>    = _sugarGoalG.asStateFlow()
+    val steps:          StateFlow<Int>    = _steps.asStateFlow()
+    val nickname:       StateFlow<String> = _nickname.asStateFlow()
+    val coachTip:       StateFlow<String> = _coachTip.asStateFlow()
 
     init {
         loadData()
@@ -93,22 +77,23 @@ constructor(
 
     fun loadData() {
         viewModelScope.launch {
-            _calorieGoal.value = goalsRepository.getCalorieGoal()
-            _stepGoal.value = goalsRepository.getStepGoal()
+            _calorieGoal.value   = goalsRepository.getCalorieGoal()
+            _stepGoal.value      = goalsRepository.getStepGoal()
             _caloriesEaten.value = foodRepository.getTotalCaloriesToday()
-            _nickname.value = goalsRepository.getNickname()
+            _nickname.value      = goalsRepository.getNickname()
+
             val macros = foodRepository.getTodayMacros()
             _protein.value = macros.protein
-            _carbs.value = macros.carbs
-            _fat.value = macros.fat
-            _sugar.value = macros.sugar
+            _carbs.value   = macros.carbs
+            _fat.value     = macros.fat
+            _sugar.value   = macros.sugar
+
             _proteinGoalG.value = goalsRepository.getProteinGoalG()
-            _carbsGoalG.value = goalsRepository.getCarbsGoalG()
-            _fatGoalG.value = goalsRepository.getFatGoalG()
-            _sugarGoalG.value = goalsRepository.getSugarGoalG()
+            _carbsGoalG.value   = goalsRepository.getCarbsGoalG()
+            _fatGoalG.value     = goalsRepository.getFatGoalG()
+            _sugarGoalG.value   = goalsRepository.getSugarGoalG()
 
             val weightLbs = goalsRepository.getWeightLbs().toDouble()
-
             val app = getApplication<Application>()
             val today = todayKey()
 
@@ -118,18 +103,16 @@ constructor(
                     _steps.value = stepsToday
                     stepsRepository.saveSteps(stepsToday, today)
 
-                    val history = healthConnectService.readStepsHistory(7)
-                    history.forEach { (date, count) -> stepsRepository.saveSteps(count, date) }
+                    healthConnectService.readStepsHistory(7).forEach { (date, count) ->
+                        stepsRepository.saveSteps(count, date)
+                    }
 
-                    // Always estimate from steps — HC's ActiveCaloriesBurnedRecord
-                    // includes resting/basal metabolism, not just activity.
                     _caloriesBurned.value = estimateCaloriesBurned(stepsToday, weightLbs)
-
                     generateCoachTip()
                     return@launch
                 }
             } catch (e: Exception) {
-                Log.w("HomeViewModel", "HealthConnect failed", e)
+                Log.w("HomeViewModel", "HealthConnect unavailable", e)
             }
 
             try {
@@ -144,9 +127,10 @@ constructor(
                     return@launch
                 }
             } catch (e: Exception) {
-                Log.w("HomeViewModel", "Pedometer failed", e)
+                Log.w("HomeViewModel", "Pedometer unavailable", e)
             }
 
+            // Fallback: use last saved value from the database
             val savedSteps = stepsRepository.getSteps(today)
             _steps.value = savedSteps
             _caloriesBurned.value = estimateCaloriesBurned(savedSteps, weightLbs)
@@ -156,35 +140,30 @@ constructor(
 
     private fun generateCoachTip() {
         coachTipJob?.cancel()
-
-        val data =
+        coachTipJob = viewModelScope.launch {
+            val tip = coachTipUseCase.getCoachTip(
                 CoachPromptData(
-                        caloriesEaten = _caloriesEaten.value,
-                        calorieGoal = _calorieGoal.value,
-                        protein = _protein.value,
-                        proteinGoal = _proteinGoalG.value,
-                        carbs = _carbs.value,
-                        carbsGoal = _carbsGoalG.value,
-                        fat = _fat.value,
-                        fatGoal = _fatGoalG.value,
-                        sugar = _sugar.value,
-                        sugarGoal = _sugarGoalG.value,
-                        steps = _steps.value,
-                        stepGoal = _stepGoal.value,
-                        nickname = _nickname.value
+                    caloriesEaten = _caloriesEaten.value,
+                    calorieGoal   = _calorieGoal.value,
+                    protein       = _protein.value,
+                    proteinGoal   = _proteinGoalG.value,
+                    carbs         = _carbs.value,
+                    carbsGoal     = _carbsGoalG.value,
+                    fat           = _fat.value,
+                    fatGoal       = _fatGoalG.value,
+                    sugar         = _sugar.value,
+                    sugarGoal     = _sugarGoalG.value,
+                    steps         = _steps.value,
+                    stepGoal      = _stepGoal.value,
+                    nickname      = _nickname.value,
                 )
-
-        coachTipJob =
-                viewModelScope.launch {
-                    val tip = coachTipUseCase.getCoachTip(data)
-                    _coachTip.update { tip }
-                }
+            )
+            _coachTip.value = tip
+        }
     }
 
-    private fun estimateCaloriesBurned(steps: Int, weightLbs: Double): Int {
-        val calPerStep = 0.04 * (weightLbs / 150.0)
-        return (steps * calPerStep).toInt()
-    }
+    private fun estimateCaloriesBurned(steps: Int, weightLbs: Double): Int =
+        (steps * 0.04 * (weightLbs / 150.0)).toInt()
 
     override fun onCleared() {
         super.onCleared()

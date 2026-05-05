@@ -193,7 +193,7 @@ fun StepsScreen(viewModel: StepsViewModel = viewModel()) {
                                 modifier = Modifier.weight(1f).fillMaxHeight(),
                                 icon = Icons.Default.LocalFireDepartment,
                                 value = fmtNum(caloriesBurned),
-                                label = "Cal Burned from Steps"
+                                label = "Cals from Steps"
                         )
                         StatCard(
                                 modifier = Modifier.weight(1f).fillMaxHeight(),

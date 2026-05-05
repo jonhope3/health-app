@@ -3,11 +3,26 @@ package com.fittrack.app
 import android.app.Application
 import com.fittrack.app.data.FoodRepository
 import com.fittrack.app.data.StepsRepository
+import dagger.hilt.android.HiltAndroidApp
+import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
+@HiltAndroidApp
 class FitTrackApplication : Application() {
+
+    @Inject lateinit var foodRepository: FoodRepository
+    @Inject lateinit var stepsRepository: StepsRepository
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun onCreate() {
         super.onCreate()
-        FoodRepository(this).cleanupOldData()
-        StepsRepository(this).cleanupOldData()
+        appScope.launch {
+            foodRepository.cleanupOldData()
+            stepsRepository.cleanupOldData()
+        }
     }
 }

@@ -1,127 +1,139 @@
 package com.fittrack.app.data
 
-import android.content.Context
-import com.fittrack.app.util.todayKey
+import com.fittrack.app.data.db.DateCaloriesRow
+import com.fittrack.app.data.db.DiaryItemDao
+import com.fittrack.app.data.db.FoodItemDao
+import com.fittrack.app.data.db.FoodItemEntity
+import com.fittrack.app.data.db.toDomain
+import com.fittrack.app.data.db.toEntity
 import java.time.LocalDate
 import java.util.UUID
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
-class FoodRepository(context: Context) {
+/**
+ * Single source of truth for food diary entries and the custom food item library.
+ *
+ * All operations are suspend functions or return Flow — callers must invoke them
+ * from a coroutine context (e.g. viewModelScope). Room automatically dispatches
+ * DAO queries off the main thread when using room-ktx.
+ */
+class FoodRepository(
+    private val diaryDao: DiaryItemDao,
+    private val foodDao: FoodItemDao,
+) {
 
-    private val prefs = context.getSharedPreferences("fittrack_food", Context.MODE_PRIVATE)
-    private val json = Json { ignoreUnknownKeys = true }
+    // ── Diary ─────────────────────────────────────────────────────────────────
 
-    fun getDiary(date: String): List<DiaryItem> {
-        val jsonStr = prefs.getString("food_log_$date", null) ?: return emptyList()
-        return try {
-            json.decodeFromString<List<DiaryItem>>(jsonStr)
-        } catch (_: Exception) {
-            emptyList()
-        }
+    /** Reactive stream of diary entries for [date] (ISO-8601, e.g. "2025-02-23"). */
+    fun getDiaryFlow(date: String): Flow<List<DiaryItem>> =
+        diaryDao.getDiaryForDateFlow(date).map { it.map(::toDomain) }
+
+    suspend fun getDiary(date: String): List<DiaryItem> =
+        diaryDao.getDiaryForDate(date).map(::toDomain)
+
+    suspend fun addDiaryItem(entry: DiaryItem, date: String) {
+        val item = if (entry.id.isBlank()) entry.copy(id = UUID.randomUUID().toString()) else entry
+        diaryDao.insert(item.toEntity())
     }
 
-    @Synchronized
-    fun addDiaryItem(entry: DiaryItem, date: String) {
-        val list = getDiary(date).toMutableList()
-        val finalEntry = if (entry.id.isBlank()) entry.copy(id = UUID.randomUUID().toString()) else entry
-        list.add(finalEntry)
-        prefs.edit().putString("food_log_$date", json.encodeToString(list)).apply()
+    suspend fun updateDiaryItem(updated: DiaryItem) = diaryDao.update(updated.toEntity())
+
+    suspend fun removeDiaryItem(id: String) = diaryDao.deleteById(id)
+
+    suspend fun getTotalCaloriesToday(): Int =
+        diaryDao.getTotalCaloriesForDate(LocalDate.now().toString()) ?: 0
+
+    suspend fun getTodayMacros(): TodayMacros {
+        val row = diaryDao.getMacrosForDate(LocalDate.now().toString())
+        return TodayMacros(
+            protein = row?.protein ?: 0f,
+            carbs   = row?.carbs   ?: 0f,
+            fat     = row?.fat     ?: 0f,
+            sugar   = row?.sugar   ?: 0f,
+        )
     }
 
-    @Synchronized
-    fun removeDiaryItem(id: String, date: String) {
-        val list = getDiary(date).filter { it.id != id }
-        prefs.edit().putString("food_log_$date", json.encodeToString(list)).apply()
-    }
-
-    @Synchronized
-    fun updateDiaryItem(updated: DiaryItem, date: String) {
-        val list = getDiary(date).map { if (it.id == updated.id) updated else it }
-        prefs.edit().putString("food_log_$date", json.encodeToString(list)).apply()
-    }
-
-    fun getTotalCaloriesToday(): Int =
-        getDiary(todayKey()).sumOf { it.calories }
-
-    data class TodayMacros(val protein: Float, val carbs: Float, val fat: Float, val sugar: Float)
-
-    fun getTodayMacros(): TodayMacros {
-        val entries = getDiary(todayKey())
-        val protein = entries.sumOf { it.protein.toDouble() }.toFloat()
-        val carbs = entries.sumOf { it.carbs.toDouble() }.toFloat()
-        val fat = entries.sumOf { it.fat.toDouble() }.toFloat()
-        val sugar = entries.sumOf { it.sugar.toDouble() }.toFloat()
-        return TodayMacros(protein, carbs, fat, sugar)
-    }
-
-    fun getCaloriesHistory(days: Int = 7): List<Pair<String, Int>> {
+    /**
+     * Returns (date, totalCalories) pairs for the last [days] days, newest first.
+     * Days with no entries produce a 0 total.
+     */
+    suspend fun getCaloriesHistory(days: Int = 7): List<Pair<String, Int>> {
         val today = LocalDate.now()
-        return (0 until days).map { offset ->
-            val date = today.minusDays(offset.toLong())
-            val key = date.toString()
-            val totalCal = getDiary(key).sumOf { it.calories }
-            key to totalCal
-        }
+        val dates = List(days) { i -> today.minusDays(i.toLong()).toString() }
+        val rowMap: Map<String, Int> = diaryDao
+            .getCaloriesTotalsForDates(dates)
+            .associate { it.date to it.total }
+        return dates.map { it to (rowMap[it] ?: 0) }
     }
 
-    @Synchronized
-    fun addOrUpdateFoodItem(food: FoodItem) {
-        val all = getAllFoodItems().toMutableList()
-        val existing = all.find { it.name.equals(food.name, ignoreCase = true) }
+    suspend fun cleanupOldData(retainDays: Int = 90) {
+        val cutoff = LocalDate.now().minusDays(retainDays.toLong()).toString()
+        diaryDao.deleteOlderThan(cutoff)
+    }
+
+    // ── Custom Food Library ───────────────────────────────────────────────────
+
+    /** Reactive stream of all saved food items, sorted by usage frequency. */
+    fun getAllFoodItemsFlow(): Flow<List<FoodItem>> =
+        foodDao.getAllFlow().map { it.map(::toDomain) }
+
+    suspend fun getAllFoodItems(): List<FoodItem> =
+        foodDao.getAll().map(::toDomain)
+
+    suspend fun searchFoodItems(query: String): List<FoodItem> {
+        if (query.isBlank()) return emptyList()
+        return foodDao.search(query.lowercase()).map(::toDomain)
+    }
+
+    /**
+     * Inserts a new food item or bumps the usage count if it already exists.
+     * The food library acts as a log — existing entries accumulate history.
+     */
+    suspend fun addOrUpdateFoodItem(food: FoodItem) {
+        val key = food.name.lowercase()
         val now = System.currentTimeMillis()
-        val updated = if (existing != null) {
-            all.filter { !it.name.equals(food.name, ignoreCase = true) } +
-                existing.copy(
-                    usageCount = existing.usageCount + 1,
-                    lastUsed = now,
-                    usageHistory = existing.usageHistory + now
-                )
+        val existing = foodDao.getByNameLower(key)
+        val entity = if (existing != null) {
+            existing.copy(
+                usageCount   = existing.usageCount + 1,
+                lastUsed     = now,
+                usageHistory = (existing.usageHistory + now).takeLast(50),
+            )
         } else {
-            all + food.copy(
-                usageCount = 1,
-                lastUsed = now,
-                firstAdded = now,
-                usageHistory = listOf(now)
+            FoodItemEntity(
+                nameLower        = key,
+                name             = food.name,
+                calories         = food.calories,
+                protein          = food.protein,
+                carbs            = food.carbs,
+                fat              = food.fat,
+                sugar            = food.sugar,
+                servingDescription = food.servingDescription,
+                usageCount       = 1,
+                lastUsed         = now,
+                firstAdded       = now,
+                usageHistory     = listOf(now),
             )
         }
-        prefs.edit().putString("custom_foods", json.encodeToString(updated)).apply()
+        foodDao.insert(entity)
     }
 
-    @Synchronized
-    fun removeFoodItem(name: String) {
-        val all = getAllFoodItems().filter { !it.name.equals(name, ignoreCase = true) }
-        prefs.edit().putString("custom_foods", json.encodeToString(all)).apply()
-    }
+    suspend fun removeFoodItem(name: String) = foodDao.deleteByNameLower(name.lowercase())
 
-    fun searchFoodItems(query: String): List<FoodItem> {
-        if (query.isBlank()) return emptyList()
-        val lower = query.lowercase()
-        return getAllFoodItems()
-            .filter { it.name.lowercase().contains(lower) }
-            .sortedByDescending { it.usageCount }
-    }
+    // ── Helper types ──────────────────────────────────────────────────────────
 
-    fun getAllFoodItems(): List<FoodItem> {
-        val jsonStr = prefs.getString("custom_foods", null) ?: return emptyList()
-        return try {
-            json.decodeFromString<List<FoodItem>>(jsonStr)
-        } catch (_: Exception) {
-            emptyList()
-        }
-    }
-
-    fun cleanupOldData(retainDays: Int = 90) {
-        val cutoff = LocalDate.now().minusDays(retainDays.toLong())
-        val editor = prefs.edit()
-        prefs.all.keys
-            .filter { it.startsWith("food_log_") }
-            .forEach { key ->
-                val dateStr = key.removePrefix("food_log_")
-                try {
-                    if (LocalDate.parse(dateStr).isBefore(cutoff)) editor.remove(key)
-                } catch (_: Exception) { }
-            }
-        editor.apply()
-    }
+    data class TodayMacros(
+        val protein: Float,
+        val carbs: Float,
+        val fat: Float,
+        val sugar: Float,
+    )
 }
+
+// Private mapper reference helpers (used in map { } lambdas above)
+private fun toDomain(entity: com.fittrack.app.data.db.DiaryItemEntity): DiaryItem =
+    entity.toDomain()
+
+private fun toDomain(entity: com.fittrack.app.data.db.FoodItemEntity): FoodItem =
+    entity.toDomain()

@@ -1,38 +1,42 @@
 package com.fittrack.app.data
 
-import android.content.Context
+import com.fittrack.app.data.db.StepsRecordDao
+import com.fittrack.app.data.db.StepsRecordEntity
 import java.time.LocalDate
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
-class StepsRepository(context: Context) {
+/**
+ * Single source of truth for step-count history.
+ *
+ * Each day is stored as a single row keyed by ISO-8601 date string.
+ * Upserting a new count for a date replaces the previous value.
+ */
+class StepsRepository(private val dao: StepsRecordDao) {
 
-    private val prefs = context.getSharedPreferences("fittrack_steps", Context.MODE_PRIVATE)
+    /** Reactive stream of the most recent [limit] days of step records. */
+    fun getRecentFlow(limit: Int = 7): Flow<List<Pair<String, Int>>> =
+        dao.getRecentFlow(limit).map { records -> records.map { it.date to it.steps } }
 
-    fun getSteps(date: String): Int = prefs.getInt("steps_$date", 0)
+    suspend fun getSteps(date: String): Int = dao.getForDate(date)?.steps ?: 0
 
-    fun saveSteps(count: Int, date: String) {
-        prefs.edit().putInt("steps_$date", count).apply()
+    suspend fun saveSteps(count: Int, date: String) {
+        dao.upsert(StepsRecordEntity(date = date, steps = count))
     }
 
-    fun getStepsHistory(days: Int = 7): List<Pair<String, Int>> {
+    /**
+     * Returns (date, stepCount) pairs for the last [days] days, newest first.
+     * Days with no record produce a 0 count.
+     */
+    suspend fun getStepsHistory(days: Int = 7): List<Pair<String, Int>> {
         val today = LocalDate.now()
-        return (0 until days).map { offset ->
-            val date = today.minusDays(offset.toLong())
-            val key = date.toString()
-            key to getSteps(key)
-        }
+        val dates = List(days) { i -> today.minusDays(i.toLong()).toString() }
+        val rowMap = dao.getForDates(dates).associate { it.date to it.steps }
+        return dates.map { it to (rowMap[it] ?: 0) }
     }
 
-    fun cleanupOldData(retainDays: Int = 90) {
-        val cutoff = LocalDate.now().minusDays(retainDays.toLong())
-        val editor = prefs.edit()
-        prefs.all.keys
-            .filter { it.startsWith("steps_") }
-            .forEach { key ->
-                val dateStr = key.removePrefix("steps_")
-                try {
-                    if (LocalDate.parse(dateStr).isBefore(cutoff)) editor.remove(key)
-                } catch (_: Exception) { }
-            }
-        editor.apply()
+    suspend fun cleanupOldData(retainDays: Int = 90) {
+        val cutoff = LocalDate.now().minusDays(retainDays.toLong()).toString()
+        dao.deleteOlderThan(cutoff)
     }
 }
