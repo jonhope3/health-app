@@ -50,25 +50,25 @@ This setup uses Homebrew and standard Android SDK locations (e.g., `$HOME/Librar
 
    Alternatively, launch it from VS Code using the **Google Android for VS Code** extension.
 
-   **🚀 One-Command Start (Recommended)**:
-   This command will check dependencies, create the emulator if missing, launch it, build the app, and run it.
+    **🚀 Cold Start**:
+    Starts the emulator, waits for it to boot, builds the app, and launches it.
 
-   ```bash
-   make start
-   ```
+    ```bash
+    make start
+    ```
 
-   **🔄 Update App (Keep Emulator Running)**:
-   Use this to fast re-deploy your changes without restarting the emulator.
+    **🔄 Fast Update**:
+    Re-builds and re-deploys the app to the already running emulator or physical device.
 
-   ```bash
-   make update
-   ```
+    ```bash
+    make run
+    ```
 
-   **🛑 Teardown (Stop & Clean)**:
+    **🛑 Stop Emulator**:
 
-   ```bash
-   make teardown
-   ```
+    ```bash
+    make emu-stop
+    ```
 
 ### Machine 2 Setup
 
@@ -99,6 +99,17 @@ This setup uses shared paths for the SDK location.
 
    ```bash
    make test
+   ```
+
+4. **Run Automated UI Tests (Emulator)**
+   These tests require the emulator to be running (`make emu-start`).
+
+   ```bash
+   # Run basic navigation and structure tests
+   make ui-test
+
+   # Run comprehensive form-filling and interaction tests
+   make exhaustive-test
    ```
 
 ### Troubleshooting

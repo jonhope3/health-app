@@ -1,4 +1,4 @@
-.PHONY: setup start teardown build test ui-test clean emulator install run log help phone release deploy emu-setup emu-start emu-start-dark emu-stop emulate
+.PHONY: setup start build test ui-test exhaustive-test clean run log help phone deploy emu-start emu-stop emu-setup release
 
 # Configuration
 GRADLE        := ./gradlew
@@ -15,33 +15,29 @@ all: help
 help:
 	@echo "FitTrack Android Makefile"
 	@echo "─────────────────────────────────────────────────"
-	@echo "Emulator (Pixel 10 Pro AVD)"
-	@echo "  make emu-setup       - One-time AVD creation & hardware config"
-	@echo "  make emu-start       - Start emulator (light mode)"
-	@echo "  make emu-start-dark  - Start emulator (dark mode)"
-	@echo "  make emu-stop        - Stop emulator"
-	@echo ""
-	@echo "Development"
-	@echo "  make emulate   - 🟢 Start emulator + build + run (cold start)"
-	@echo "  make start    - 🚀 One-Step Dev: build & launch on emulator"
-	@echo "  make update   - 🔄 Fast update: reinstall without restarting emulator"
-	@echo "  make build    - Build debug APK"
-	@echo "  make run      - Install & launch on running emulator"
-	@echo "  make install  - Install debug APK to running emulator/device"
-	@echo "  make log      - Tail app logcat"
+	@echo "Dev Lifecycle"
+	@echo "  make start           - 🚀 Cold start: Start emulator + build + launch"
+	@echo "  make run             - 🔄 Fast update: Re-build and launch on running device"
+	@echo "  make log             - 📝 View app logs (Logcat)"
 	@echo ""
 	@echo "Testing"
-	@echo "  make test     - Unit tests (no device needed)"
-	@echo "  make ui-test  - Compose UI tests on emulator (emulator must be running)"
+	@echo "  make test            - 🧪 Unit tests (local)"
+	@echo "  make ui-test         - 🖼️  UI navigation tests (emulator)"
+	@echo "  make exhaustive-test - 💯 Comprehensive interaction tests (fills all forms)"
 	@echo ""
-	@echo "Physical Device"
-	@echo "  make phone    - Install & launch on connected USB device"
-	@echo "  make deploy   - Build, sign, and install production APK to phone"
-	@echo "  make release  - Build & sign production APK only"
+	@echo "Physical Device & Release"
+	@echo "  make phone           - 📱 Install & launch on connected USB device"
+	@echo "  make deploy          - 🚀 Build and deploy signed production APK"
 	@echo ""
-	@echo "  make setup    - Verify development environment"
-	@echo "  make teardown - Stop emulator & clean build"
-	@echo "  make clean    - Clean build artifacts"
+	@echo "Emulator Control"
+	@echo "  make emu-start       - 🖥️  Start emulator only"
+	@echo "  make emu-stop        - 🛑 Stop emulator"
+	@echo "  make emu-setup       - 🛠️  One-time AVD creation"
+	@echo ""
+	@echo "Utilities"
+	@echo "  make build           - 🔨 Build debug APK"
+	@echo "  make clean           - 🧹 Clean build artifacts"
+	@echo "  make setup           - 🔍 Verify environment"
 
 # ── Environment ───────────────────────────────────────────────────────────────
 setup:
@@ -61,54 +57,28 @@ emu-start:
 	@./scripts/emulator_start.sh
 
 ## Start emulator in dark mode (for dark-mode UI testing)
-emu-start-dark:
-	@chmod +x scripts/emulator_start.sh
-	@./scripts/emulator_start.sh --dark
 
 ## Stop the emulator
 emu-stop:
 	@chmod +x scripts/emulator_stop.sh
 	@./scripts/emulator_stop.sh
 
-# Legacy alias kept for backward compatibility
-emulator: emu-start
 
 # ── Dev workflow ──────────────────────────────────────────────────────────────
 
-## Start emulator, wait for boot, build debug APK, install and launch.
-## Use this for a full cold-start run on the emulator.
-emulate:
-	@echo "▶  Starting emulator..."
-	@chmod +x scripts/emulator_start.sh
-	@./scripts/emulator_start.sh &
-	@echo "⏳  Waiting for emulator to boot..."
-	@$(ADB) wait-for-device
-	@$(ADB) shell 'while [[ "$$(getprop sys.boot_completed)" != "1" ]]; do sleep 2; done'
-	@echo "✅  Emulator ready. Installing app..."
-	@$(GRADLE) installDebug || ($(ADB) uninstall $(PACKAGE_NAME) && $(GRADLE) installDebug)
-	@echo "🚀  Launching app..."
-	@$(ADB) shell monkey -p $(PACKAGE_NAME) -c android.intent.category.LAUNCHER 1
-
+## Full cold-start: Start emulator, wait for boot, build and launch.
 start:
 	@chmod +x scripts/start_dev.sh
 	@./scripts/start_dev.sh
 
-teardown:
-	@chmod +x scripts/teardown.sh
-	@./scripts/teardown.sh
-
-update: run
+## Fast update: Rebuild and launch on the currently running emulator/device.
+run:
+	@echo "Updating app..."
+	@$(GRADLE) installDebug || ($(ADB) uninstall $(PACKAGE_NAME) && $(GRADLE) installDebug)
+	@$(ADB) shell monkey -p $(PACKAGE_NAME) -c android.intent.category.LAUNCHER 1
 
 build:
 	$(GRADLE) assembleDebug
-
-# Install the app (handles signature conflict by uninstalling first if needed)
-install:
-	@$(GRADLE) installDebug || ($(ADB) uninstall $(PACKAGE_NAME) && $(GRADLE) installDebug)
-
-run: install
-	@echo "Launching app..."
-	@$(ADB) shell monkey -p $(PACKAGE_NAME) -c android.intent.category.LAUNCHER 1
 
 # ── Testing ───────────────────────────────────────────────────────────────────
 
@@ -120,12 +90,19 @@ test:
 ## Emulator must be running (make emu-start) before calling this.
 ## These tests are UI-only and do NOT require Gemini Nano.
 ui-test:
-	@echo "Running Compose UI tests on emulator..."
+	@echo "Running standard UI navigation tests..."
 	$(GRADLE) connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.fittrack.app.ui.test.FitTrackUiTestSuite
 
+## Exhaustive Interaction tests — fills every form and clicks every button.
+## Emulator must be running (make emu-start) before calling this.
+exhaustive-test:
+	@echo "Running comprehensive interaction tests..."
+	$(GRADLE) connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.fittrack.app.ui.test.ExhaustiveInteractionsTest
+
 # ── Physical device ───────────────────────────────────────────────────────────
-phone: install
-	@echo "Launching app on physical device..."
+phone:
+	@echo "Deploying to physical device..."
+	@$(GRADLE) installDebug || ($(ADB) -d uninstall $(PACKAGE_NAME) && $(GRADLE) installDebug)
 	@$(ADB) -d shell monkey -p $(PACKAGE_NAME) -c android.intent.category.LAUNCHER 1
 
 release:
