@@ -110,3 +110,30 @@ interface StepsRecordDao {
     @Query("DELETE FROM steps_record")
     suspend fun deleteAll()
 }
+
+// ── UserSettingsDao ───────────────────────────────────────────────────────────
+
+@Dao
+interface UserSettingsDao {
+
+    /** Reactive stream of the singleton settings row. Emits defaults until the row exists. */
+    @Query("SELECT * FROM user_settings WHERE id = 1 LIMIT 1")
+    fun observe(): Flow<UserSettingsEntity?>
+
+    /** Insert-or-replace the entire settings row. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(settings: UserSettingsEntity)
+
+    @Query("UPDATE user_settings SET calorieGoal  = :v WHERE id = 1") suspend fun setCalorieGoal(v: Int)
+    @Query("UPDATE user_settings SET stepGoal      = :v WHERE id = 1") suspend fun setStepGoal(v: Int)
+    @Query("UPDATE user_settings SET weightLbs     = :v WHERE id = 1") suspend fun setWeightLbs(v: Float)
+    @Query("UPDATE user_settings SET heightIn      = :v WHERE id = 1") suspend fun setHeightIn(v: Float)
+    @Query("UPDATE user_settings SET age           = :v WHERE id = 1") suspend fun setAge(v: Int)
+    @Query("UPDATE user_settings SET proteinGoalG  = :v WHERE id = 1") suspend fun setProteinGoalG(v: Int)
+    @Query("UPDATE user_settings SET carbsGoalG    = :v WHERE id = 1") suspend fun setCarbsGoalG(v: Int)
+    @Query("UPDATE user_settings SET fatGoalG      = :v WHERE id = 1") suspend fun setFatGoalG(v: Int)
+    @Query("UPDATE user_settings SET sugarGoalG    = :v WHERE id = 1") suspend fun setSugarGoalG(v: Int)
+    @Query("UPDATE user_settings SET nickname      = :v WHERE id = 1") suspend fun setNickname(v: String)
+    @Query("UPDATE user_settings SET onboardingDone = :v WHERE id = 1") suspend fun setOnboardingDone(v: Boolean)
+    @Query("UPDATE user_settings SET themeMode     = :v WHERE id = 1") suspend fun setThemeMode(v: String)
+}

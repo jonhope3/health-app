@@ -36,30 +36,33 @@ import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
 import androidx.health.connect.client.records.StepsRecord
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.fittrack.app.data.ThemeMode
 import com.fittrack.app.theme.AppColors
 import com.fittrack.app.theme.interFamily
 import com.fittrack.app.ui.common.ScreenScaffold
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
+fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     val context = LocalContext.current
-    val calorieGoal by viewModel.calorieGoal.collectAsState()
-    val stepGoal by viewModel.stepGoal.collectAsState()
-    val weightLbs by viewModel.weightLbs.collectAsState()
-    val heightFt by viewModel.heightFt.collectAsState()
-    val heightIn by viewModel.heightIn.collectAsState()
-    val age by viewModel.age.collectAsState()
-    val nickname by viewModel.nickname.collectAsState()
-    val healthConnectGranted by viewModel.healthConnectGranted.collectAsState()
-    val proteinGoal by viewModel.proteinGoal.collectAsState()
-    val carbsGoal by viewModel.carbsGoal.collectAsState()
-    val fatGoal by viewModel.fatGoal.collectAsState()
-    val sugarGoal by viewModel.sugarGoal.collectAsState()
-    val isGeneratingMacros by viewModel.isGeneratingMacros.collectAsState()
-    val macroGenerateError by viewModel.macroGenerateError.collectAsState()
-    val geminiReady by viewModel.geminiReady.collectAsState()
+    val calorieGoal by viewModel.calorieGoal.collectAsStateWithLifecycle()
+    val stepGoal by viewModel.stepGoal.collectAsStateWithLifecycle()
+    val weightLbs by viewModel.weightLbs.collectAsStateWithLifecycle()
+    val heightFt by viewModel.heightFt.collectAsStateWithLifecycle()
+    val heightIn by viewModel.heightIn.collectAsStateWithLifecycle()
+    val age by viewModel.age.collectAsStateWithLifecycle()
+    val nickname by viewModel.nickname.collectAsStateWithLifecycle()
+    val healthConnectGranted by viewModel.healthConnectGranted.collectAsStateWithLifecycle()
+    val proteinGoal by viewModel.proteinGoal.collectAsStateWithLifecycle()
+    val carbsGoal by viewModel.carbsGoal.collectAsStateWithLifecycle()
+    val fatGoal by viewModel.fatGoal.collectAsStateWithLifecycle()
+    val sugarGoal by viewModel.sugarGoal.collectAsStateWithLifecycle()
+    val isGeneratingMacros by viewModel.isGeneratingMacros.collectAsStateWithLifecycle()
+    val macroGenerateError by viewModel.macroGenerateError.collectAsStateWithLifecycle()
+    val geminiReady by viewModel.geminiReady.collectAsStateWithLifecycle()
+    val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
 
     var editingGoals by remember { mutableStateOf(false) }
     var editingBody by remember { mutableStateOf(false) }
@@ -67,7 +70,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
     var editingNickname by remember { mutableStateOf(false) }
     var showNukeConfirm by remember { mutableStateOf(false) }
     var showDbViewer by remember { mutableStateOf(false) }
-    val dbEntries by viewModel.dbEntries.collectAsState()
+    val dbEntries by viewModel.dbEntries.collectAsStateWithLifecycle()
     var selectedEntry by remember { mutableStateOf<DbEntry?>(null) }
 
     val hcAvailability = HealthConnectClient.getSdkStatus(context)
@@ -87,8 +90,48 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                 fontFamily = interFamily,
                 fontWeight = FontWeight.Bold,
                 fontSize = 32.sp,
-                color = AppColors.textPrimary
+                color = MaterialTheme.colorScheme.onBackground
         )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // ── Appearance ──
+        SectionHeader("Appearance")
+        Spacer(modifier = Modifier.height(8.dp))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Color Scheme",
+                    fontFamily = interFamily,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                // 3-way segmented control: Light | Dark | System
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    ThemeMode.entries.forEachIndexed { index, mode ->
+                        SegmentedButton(
+                            shape = SegmentedButtonDefaults.itemShape(
+                                index = index,
+                                count = ThemeMode.entries.size,
+                            ),
+                            onClick = { viewModel.setThemeMode(mode) },
+                            selected = themeMode == mode,
+                            label = {
+                                Text(
+                                    text = mode.name.lowercase().replaceFirstChar { it.uppercase() },
+                                    fontFamily = interFamily,
+                                    fontSize = 13.sp,
+                                )
+                            },
+                        )
+                    }
+                }
+            }
+        }
         Spacer(modifier = Modifier.height(16.dp))
 
         // ── Profile / Nickname ──

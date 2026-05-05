@@ -6,6 +6,9 @@ enum class MealType {
     BREAKFAST, LUNCH, DINNER, SNACK, OTHER
 }
 
+/** Controls app color scheme. Stored in Room `user_settings`. */
+enum class ThemeMode { LIGHT, DARK, SYSTEM }
+
 data class DiaryItem(
     val id: String,
     val name: String,

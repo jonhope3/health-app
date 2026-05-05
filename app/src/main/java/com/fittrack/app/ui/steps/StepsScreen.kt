@@ -37,7 +37,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,7 +49,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.health.connect.client.PermissionController
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fittrack.app.theme.AppColors
 import com.fittrack.app.theme.interFamily
 import com.fittrack.app.ui.common.ScreenScaffold
@@ -61,22 +61,22 @@ import java.util.Locale
 import kotlinx.coroutines.delay
 
 @Composable
-fun StepsScreen(viewModel: StepsViewModel = viewModel()) {
+fun StepsScreen(viewModel: StepsViewModel = hiltViewModel()) {
         val context = LocalContext.current
-        val steps by viewModel.steps.collectAsState()
-        val stepGoal by viewModel.stepGoal.collectAsState()
-        val stepSource by viewModel.stepSource.collectAsState()
-        val stepsHistory by viewModel.stepsHistory.collectAsState()
-        val caloriesHistory by viewModel.caloriesHistory.collectAsState()
-        val caloriesConsumed by viewModel.caloriesConsumed.collectAsState()
-        val caloriesBurned by viewModel.caloriesBurned.collectAsState()
-        val showAddDialog by viewModel.showAddDialog.collectAsState()
-        val showGoalDialog by viewModel.showGoalDialog.collectAsState()
-        val addStepsText by viewModel.addStepsText.collectAsState()
-        val addMode by viewModel.addMode.collectAsState()
-        val goalText by viewModel.goalText.collectAsState()
+        val steps by viewModel.steps.collectAsStateWithLifecycle()
+        val stepGoal by viewModel.stepGoal.collectAsStateWithLifecycle()
+        val stepSource by viewModel.stepSource.collectAsStateWithLifecycle()
+        val stepsHistory by viewModel.stepsHistory.collectAsStateWithLifecycle()
+        val caloriesHistory by viewModel.caloriesHistory.collectAsStateWithLifecycle()
+        val caloriesConsumed by viewModel.caloriesConsumed.collectAsStateWithLifecycle()
+        val caloriesBurned by viewModel.caloriesBurned.collectAsStateWithLifecycle()
+        val showAddDialog by viewModel.showAddDialog.collectAsStateWithLifecycle()
+        val showGoalDialog by viewModel.showGoalDialog.collectAsStateWithLifecycle()
+        val addStepsText by viewModel.addStepsText.collectAsStateWithLifecycle()
+        val addMode by viewModel.addMode.collectAsStateWithLifecycle()
+        val goalText by viewModel.goalText.collectAsStateWithLifecycle()
         val needsHealthConnectPermissions by
-                viewModel.needsHealthConnectPermissions.collectAsState()
+                viewModel.needsHealthConnectPermissions.collectAsStateWithLifecycle()
 
         val healthConnectContract = PermissionController.createRequestPermissionResultContract()
         val healthConnectPermissionLauncher =

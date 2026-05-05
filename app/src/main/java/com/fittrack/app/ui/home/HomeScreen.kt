@@ -33,13 +33,13 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,10 +57,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import androidx.navigation.NavGraph.Companion.findStartDestination
-import com.fittrack.app.data.GoalsRepository
+import com.fittrack.app.AppRoute
 import com.fittrack.app.theme.AppColors
 import com.fittrack.app.theme.interFamily
 import com.fittrack.app.ui.common.ScreenScaffold
@@ -136,7 +136,10 @@ private fun ConfettiBurst(trigger: Boolean, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun OnboardingDialog(goalsRepository: GoalsRepository, onComplete: () -> Unit) {
+private fun OnboardingDialog(
+    onSave: (name: String, calorieGoal: Int, stepGoal: Int) -> Unit,
+    onComplete: () -> Unit,
+) {
         var step by remember { mutableStateOf(0) }
         var nameText by remember { mutableStateOf("") }
         var calorieText by remember { mutableStateOf("2000") }
@@ -150,21 +153,13 @@ private fun OnboardingDialog(goalsRepository: GoalsRepository, onComplete: () ->
                         "How many steps do you want to hit daily?"
                 )
 
-        val scope = androidx.compose.runtime.rememberCoroutineScope()
-
         fun saveAndFinish() {
-                val name = nameText.trim()
-                scope.launch {
-                    if (name.isNotBlank()) goalsRepository.setNickname(name)
-                    calorieText.toIntOrNull()?.let {
-                            if (it in 500..10000) goalsRepository.setCalorieGoal(it)
-                    }
-                    stepText.toIntOrNull()?.let {
-                            if (it in 100..200000) goalsRepository.setStepGoal(it)
-                    }
-                    goalsRepository.setOnboardingCompleted()
-                    onComplete()
-                }
+                onSave(
+                    nameText.trim(),
+                    calorieText.toIntOrNull()?.takeIf { it in 500..10000 } ?: 2000,
+                    stepText.toIntOrNull()?.takeIf { it in 100..200000 } ?: 10000,
+                )
+                onComplete()
         }
 
         fun skipStep() {
@@ -180,14 +175,14 @@ private fun OnboardingDialog(goalsRepository: GoalsRepository, onComplete: () ->
                                         fontFamily = interFamily,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 20.sp,
-                                        color = AppColors.textPrimary
+                                        color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                         text = "Step ${step + 1} of 3",
                                         fontFamily = interFamily,
                                         fontSize = 12.sp,
-                                        color = AppColors.textSecondary
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                         }
                 },
@@ -198,14 +193,14 @@ private fun OnboardingDialog(goalsRepository: GoalsRepository, onComplete: () ->
                                         fontFamily = interFamily,
                                         fontWeight = FontWeight.SemiBold,
                                         fontSize = 16.sp,
-                                        color = AppColors.textPrimary
+                                        color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                         text = subtitles[step],
                                         fontFamily = interFamily,
                                         fontSize = 13.sp,
-                                        color = AppColors.textSecondary
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 when (step) {
@@ -223,9 +218,7 @@ private fun OnboardingDialog(goalsRepository: GoalsRepository, onComplete: () ->
                                                                 Text(
                                                                         "e.g. Alex",
                                                                         fontFamily = interFamily,
-                                                                        color =
-                                                                                AppColors
-                                                                                        .textSecondary
+                                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                                                 )
                                                         },
                                                         modifier = Modifier.fillMaxWidth(),
@@ -285,7 +278,7 @@ private fun OnboardingDialog(goalsRepository: GoalsRepository, onComplete: () ->
                                 onClick = { if (step < 2) step++ else saveAndFinish() },
                                 colors =
                                         ButtonDefaults.buttonColors(
-                                                containerColor = AppColors.primary
+                                                containerColor = MaterialTheme.colorScheme.primary
                                         )
                         ) {
                                 Text(
@@ -299,7 +292,7 @@ private fun OnboardingDialog(goalsRepository: GoalsRepository, onComplete: () ->
                                 Text(
                                         "Skip",
                                         fontFamily = interFamily,
-                                        color = AppColors.textSecondary
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                         }
                 }
@@ -307,45 +300,41 @@ private fun OnboardingDialog(goalsRepository: GoalsRepository, onComplete: () ->
 }
 
 @Composable
-fun HomeScreen(navController: NavController, viewModel: HomeViewModel = viewModel()) {
+fun HomeScreen(navController: NavController, viewModel: HomeViewModel = hiltViewModel()) {
         val context = LocalContext.current
-        val goalsRepository = remember { GoalsRepository(context) }
-        var showOnboarding by remember { mutableStateOf(false) }
-        LaunchedEffect(Unit) {
-            showOnboarding = !goalsRepository.hasCompletedOnboarding()
-        }
+        val onboardingDone by viewModel.onboardingDone.collectAsStateWithLifecycle()
+        val showOnboarding = !onboardingDone
 
-        val calorieGoal by viewModel.calorieGoal.collectAsState()
-        val stepGoal by viewModel.stepGoal.collectAsState()
-        val caloriesEaten by viewModel.caloriesEaten.collectAsState()
-        val protein by viewModel.protein.collectAsState()
-        val carbs by viewModel.carbs.collectAsState()
-        val fat by viewModel.fat.collectAsState()
-        val sugar by viewModel.sugar.collectAsState()
-        val steps by viewModel.steps.collectAsState()
-        val caloriesBurned by viewModel.caloriesBurned.collectAsState()
-        val proteinGoalG by viewModel.proteinGoalG.collectAsState()
-        val carbsGoalG by viewModel.carbsGoalG.collectAsState()
-        val fatGoalG by viewModel.fatGoalG.collectAsState()
-        val sugarGoalG by viewModel.sugarGoalG.collectAsState()
-        val nickname by viewModel.nickname.collectAsState()
-        val coachTip by viewModel.coachTip.collectAsState()
+        val calorieGoal by viewModel.calorieGoal.collectAsStateWithLifecycle()
+        val stepGoal by viewModel.stepGoal.collectAsStateWithLifecycle()
+        val caloriesEaten by viewModel.caloriesEaten.collectAsStateWithLifecycle()
+        val protein by viewModel.protein.collectAsStateWithLifecycle()
+        val carbs by viewModel.carbs.collectAsStateWithLifecycle()
+        val fat by viewModel.fat.collectAsStateWithLifecycle()
+        val sugar by viewModel.sugar.collectAsStateWithLifecycle()
+        val steps by viewModel.steps.collectAsStateWithLifecycle()
+        val caloriesBurned by viewModel.caloriesBurned.collectAsStateWithLifecycle()
+        val proteinGoalG by viewModel.proteinGoalG.collectAsStateWithLifecycle()
+        val carbsGoalG by viewModel.carbsGoalG.collectAsStateWithLifecycle()
+        val fatGoalG by viewModel.fatGoalG.collectAsStateWithLifecycle()
+        val sugarGoalG by viewModel.sugarGoalG.collectAsStateWithLifecycle()
+        val nickname by viewModel.nickname.collectAsStateWithLifecycle()
+        val coachTip by viewModel.coachTip.collectAsStateWithLifecycle()
 
         if (showOnboarding) {
                 OnboardingDialog(
-                        goalsRepository = goalsRepository,
-                        onComplete = {
-                                showOnboarding = false
-                                viewModel.loadData()
-                        }
+                        onSave = { name, cals, stepGoal ->
+                            viewModel.onboardingSave(name, cals, stepGoal)
+                        },
+                        onComplete = { viewModel.loadData() },
                 )
         }
 
         LaunchedEffect(Unit) { viewModel.loadData() }
 
-        val navigateTo = { route: String ->
+        fun navigateTo(route: AppRoute) {
                 navController.navigate(route) {
-                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        popUpTo(navController.graph.startDestinationId) { saveState = true }
                         launchSingleTop = true
                         restoreState = true
                 }
@@ -408,7 +397,7 @@ fun HomeScreen(navController: NavController, viewModel: HomeViewModel = viewMode
                                         goalValue = calorieGoal,
                                         label = "Calories Consumed",
                                         ringColor = progressColor(caloriesProgress, lowGood = true),
-                                        onClick = { navigateTo("log") }
+                                        onClick = { navigateTo(AppRoute.Log) }
                                 )
                                 ProgressRing(
                                         progress = stepsProgress,
@@ -416,7 +405,7 @@ fun HomeScreen(navController: NavController, viewModel: HomeViewModel = viewMode
                                         goalValue = stepGoal,
                                         label = "Steps",
                                         ringColor = progressColor(stepsProgress, lowGood = false),
-                                        onClick = { navigateTo("steps") },
+                                        onClick = { navigateTo(AppRoute.Steps) },
                                         onLongClick = {
                                                 val intents =
                                                         com.fittrack.app.services
@@ -768,7 +757,7 @@ fun HomeScreen(navController: NavController, viewModel: HomeViewModel = viewMode
                                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                         OutlinedButton(
-                                                onClick = { navigateTo("log") },
+                                                onClick = { navigateTo(AppRoute.Log) },
                                                 modifier = Modifier.weight(1f)
                                         ) {
                                                 Text(
@@ -778,7 +767,7 @@ fun HomeScreen(navController: NavController, viewModel: HomeViewModel = viewMode
                                                 )
                                         }
                                         OutlinedButton(
-                                                onClick = { navigateTo("steps") },
+                                                onClick = { navigateTo(AppRoute.Steps) },
                                                 modifier = Modifier.weight(1f)
                                         ) {
                                                 Text(

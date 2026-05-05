@@ -3,6 +3,7 @@ package com.fittrack.app.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fittrack.app.data.GoalsRepository
+import com.fittrack.app.data.ThemeMode
 import com.fittrack.app.data.db.DiaryItemDao
 import com.fittrack.app.data.db.FoodItemDao
 import com.fittrack.app.data.db.StepsRecordDao
@@ -12,8 +13,10 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -74,6 +77,10 @@ class SettingsViewModel @Inject constructor(
     val geminiReady:          StateFlow<Boolean>      = _geminiReady.asStateFlow()
     val dbEntries:            StateFlow<List<DbEntry>> = _dbEntries.asStateFlow()
 
+    /** Reactive theme mode — drives the 3-way picker in Settings UI. */
+    val themeMode: StateFlow<ThemeMode> = goalsRepository.themeModeFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThemeMode.LIGHT)
+
     init {
         loadData()
         viewModelScope.launch { _geminiReady.value = geminiNanoService.initIfNeeded() }
@@ -114,6 +121,10 @@ class SettingsViewModel @Inject constructor(
     fun setCarbsGoal(v: String)   { _carbsGoal.value   = v.filter(Char::isDigit) }
     fun setFatGoal(v: String)     { _fatGoal.value     = v.filter(Char::isDigit) }
     fun setSugarGoal(v: String)   { _sugarGoal.value   = v.filter(Char::isDigit) }
+
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch { goalsRepository.setThemeMode(mode) }
+    }
 
     // ── Persist ───────────────────────────────────────────────────────────────
 
@@ -199,7 +210,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     /**
-     * Clears all Room tables and DataStore preferences, then resets the UI fields.
+     * Clears all Room tables and resets user settings, then resets the UI fields.
      * Intended for the "Reset & Start Fresh" action.
      */
     fun nukeDb() {
@@ -281,7 +292,7 @@ class SettingsViewModel @Inject constructor(
                 }
             }
 
-            // DataStore goals
+            // user_settings — goals from Room
             val goals = linkedMapOf(
                 "calorie_goal" to goalsRepository.getCalorieGoal().toString(),
                 "step_goal"    to goalsRepository.getStepGoal().toString(),
@@ -293,11 +304,12 @@ class SettingsViewModel @Inject constructor(
                 "carbs_goal"   to goalsRepository.getCarbsGoalG().toString(),
                 "fat_goal"     to goalsRepository.getFatGoalG().toString(),
                 "sugar_goal"   to goalsRepository.getSugarGoalG().toString(),
+                "theme_mode"   to goalsRepository.getThemeMode().name,
             )
             // Each goal key is its own row with "key" and "value" columns
             goals.forEach { (k, v) ->
                 list += DbEntry(
-                    table  = "datastore_goals",
+                    table  = "user_settings",
                     fields = linkedMapOf("key" to k, "value" to v),
                 )
             }

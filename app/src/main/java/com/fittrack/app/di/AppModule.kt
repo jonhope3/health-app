@@ -8,7 +8,9 @@ import com.fittrack.app.data.StepsRepository
 import com.fittrack.app.data.db.DiaryItemDao
 import com.fittrack.app.data.db.FitTrackDatabase
 import com.fittrack.app.data.db.FoodItemDao
+import com.fittrack.app.data.db.MIGRATION_1_2
 import com.fittrack.app.data.db.StepsRecordDao
+import com.fittrack.app.data.db.UserSettingsDao
 import com.fittrack.app.services.GeminiNanoService
 import dagger.Module
 import dagger.Provides
@@ -25,40 +27,35 @@ object AppModule {
     @Singleton
     fun provideFitTrackDatabase(@ApplicationContext context: Context): FitTrackDatabase =
         Room.databaseBuilder(context, FitTrackDatabase::class.java, "fittrack.db")
-            .fallbackToDestructiveMigration(true)
+            .addMigrations(MIGRATION_1_2)
             .build()
 
-    @Provides
-    @Singleton
+    @Provides @Singleton
     fun provideDiaryItemDao(db: FitTrackDatabase): DiaryItemDao = db.diaryItemDao()
 
-    @Provides
-    @Singleton
+    @Provides @Singleton
     fun provideFoodItemDao(db: FitTrackDatabase): FoodItemDao = db.foodItemDao()
 
-    @Provides
-    @Singleton
+    @Provides @Singleton
     fun provideStepsRecordDao(db: FitTrackDatabase): StepsRecordDao = db.stepsRecordDao()
 
-    @Provides
-    @Singleton
+    @Provides @Singleton
+    fun provideUserSettingsDao(db: FitTrackDatabase): UserSettingsDao = db.userSettingsDao()
+
+    @Provides @Singleton
     fun provideFoodRepository(
         diaryItemDao: DiaryItemDao,
         foodItemDao: FoodItemDao,
     ): FoodRepository = FoodRepository(diaryItemDao, foodItemDao)
 
-    @Provides
-    @Singleton
+    @Provides @Singleton
     fun provideStepsRepository(stepsRecordDao: StepsRecordDao): StepsRepository =
         StepsRepository(stepsRecordDao)
 
-    @Provides
-    @Singleton
-    fun provideGoalsRepository(@ApplicationContext context: Context): GoalsRepository =
-        GoalsRepository(context)
+    // GoalsRepository uses @Inject constructor — Hilt resolves it automatically.
+    // No explicit @Provides needed.
 
     /** Singleton so the underlying ML Kit model is initialised only once. */
-    @Provides
-    @Singleton
+    @Provides @Singleton
     fun provideGeminiNanoService(): GeminiNanoService = GeminiNanoService()
 }

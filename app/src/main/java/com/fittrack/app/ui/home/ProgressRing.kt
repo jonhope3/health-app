@@ -38,6 +38,7 @@ import com.fittrack.app.util.fmtNum
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.material3.MaterialTheme
 
 fun progressColor(ratio: Float, lowGood: Boolean): Color {
     val pct = if (lowGood) ratio else (1f - ratio)
@@ -97,6 +98,7 @@ fun ProgressRing(
         ),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        val ringTrackColor = AppColors.ringTrackLight
         Box(
             modifier = Modifier.size(ringSize),
             contentAlignment = Alignment.Center
@@ -129,7 +131,7 @@ fun ProgressRing(
                 }
 
                 drawArc(
-                    color = Color(0xFFDADCE0),
+                    color = ringTrackColor,
                     startAngle = 135f,
                     sweepAngle = 270f,
                     useCenter = false,
@@ -157,14 +159,14 @@ fun ProgressRing(
                     fontFamily = interFamily,
                     fontWeight = FontWeight.Bold,
                     fontSize = 28.sp,
-                    color = AppColors.textPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "of ${fmtNum(goalValue)}",
                     fontFamily = interFamily,
                     fontWeight = FontWeight.Normal,
                     fontSize = 11.sp,
-                    color = AppColors.textSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -176,7 +178,7 @@ fun ProgressRing(
             fontFamily = interFamily,
             fontWeight = FontWeight.SemiBold,
             fontSize = 12.sp,
-            color = AppColors.textSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             letterSpacing = 1.sp
         )
     }

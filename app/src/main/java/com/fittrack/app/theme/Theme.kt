@@ -1,6 +1,7 @@
 package com.fittrack.app.theme
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 
@@ -22,11 +23,44 @@ private val LightColorScheme = lightColorScheme(
     outline = AppColors.border,
 )
 
+private val DarkColorScheme = darkColorScheme(
+    primary            = AppColors.primaryLight,
+    onPrimary          = AppColors.primaryDark,
+    primaryContainer   = AppColors.primaryDark,
+    onPrimaryContainer = AppColors.primaryLight,
+    secondary          = AppColors.primaryLight,
+    onSecondary        = AppColors.primaryDark,
+    background         = AppColors.darkBackground,
+    onBackground       = AppColors.darkTextPrimary,
+    surface            = AppColors.darkSurface,
+    onSurface          = AppColors.darkTextPrimary,
+    surfaceVariant     = AppColors.darkSurfaceVariant,
+    onSurfaceVariant   = AppColors.darkTextSecondary,
+    surfaceContainer   = AppColors.darkSurfaceElevated,
+    error              = AppColors.error,
+    onError            = AppColors.textOnPrimary,
+    outline            = AppColors.darkBorder,
+    outlineVariant     = AppColors.darkBorder.copy(alpha = 0.5f),
+)
+
+/**
+ * FitTrack Material3 theme.
+ *
+ * Always uses the explicitly defined [LightColorScheme] / [DarkColorScheme] from [AppColors].
+ * Dynamic color (Material You) is intentionally disabled — it overrides the brand palette with
+ * wallpaper-derived tones that break contrast and visual consistency.
+ */
 @Composable
-fun FitTrackTheme(content: @Composable () -> Unit) {
+fun FitTrackTheme(
+    darkTheme: Boolean = false,
+    content: @Composable () -> Unit,
+) {
+    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+
     MaterialTheme(
-        colorScheme = LightColorScheme,
+        colorScheme = colorScheme,
         typography = AppTypography,
-        content = content
+        content = content,
     )
 }
+

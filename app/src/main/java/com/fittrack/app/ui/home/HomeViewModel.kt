@@ -15,8 +15,10 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 @HiltViewModel
@@ -70,6 +72,10 @@ class HomeViewModel @Inject constructor(
     val steps:          StateFlow<Int>    = _steps.asStateFlow()
     val nickname:       StateFlow<String> = _nickname.asStateFlow()
     val coachTip:       StateFlow<String> = _coachTip.asStateFlow()
+
+    /** True once the user has dismissed the onboarding flow. */
+    val onboardingDone: StateFlow<Boolean> = goalsRepository.onboardingDoneFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 
     init {
         loadData()
@@ -164,6 +170,19 @@ class HomeViewModel @Inject constructor(
 
     private fun estimateCaloriesBurned(steps: Int, weightLbs: Double): Int =
         (steps * 0.04 * (weightLbs / 150.0)).toInt()
+
+    fun onboardingSave(name: String, calorieGoal: Int, stepGoal: Int) {
+        viewModelScope.launch {
+            if (name.isNotBlank()) goalsRepository.setNickname(name)
+            goalsRepository.setCalorieGoal(calorieGoal)
+            goalsRepository.setStepGoal(stepGoal)
+            goalsRepository.setOnboardingCompleted()
+        }
+    }
+
+    fun markOnboardingComplete() {
+        viewModelScope.launch { goalsRepository.setOnboardingCompleted() }
+    }
 
     override fun onCleared() {
         super.onCleared()

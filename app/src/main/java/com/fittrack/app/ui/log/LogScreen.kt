@@ -41,7 +41,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fittrack.app.data.DiaryItem
 import com.fittrack.app.data.FoodItem
 import com.fittrack.app.data.NutritionResult
@@ -52,33 +53,33 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 @Composable
-fun LogScreen(viewModel: LogViewModel = viewModel()) {
-        val mode by viewModel.mode.collectAsState()
-        val searchQuery by viewModel.searchQuery.collectAsState()
-        val searchResult by viewModel.searchResult.collectAsState()
-        val searchError by viewModel.searchError.collectAsState()
-        val isSearching by viewModel.isSearching.collectAsState()
-        val searchStatus by viewModel.searchStatus.collectAsState()
-        val foodLog by viewModel.foodLog.collectAsState()
-        val calorieGoal by viewModel.calorieGoal.collectAsState()
-        val caloriesEaten by viewModel.caloriesEaten.collectAsState()
-        val manualName by viewModel.manualName.collectAsState()
-        val manualCalories by viewModel.manualCalories.collectAsState()
-        val manualProtein by viewModel.manualProtein.collectAsState()
-        val manualCarbs by viewModel.manualCarbs.collectAsState()
-        val manualFat by viewModel.manualFat.collectAsState()
-        val manualSugar by viewModel.manualSugar.collectAsState()
-        val aiInput by viewModel.aiInput.collectAsState()
-        val aiResults by viewModel.aiResults.collectAsState()
-        val isAiParsing by viewModel.isAiParsing.collectAsState()
-        val geminiReady by viewModel.geminiReady.collectAsState()
-        val customFoodSuggestions by viewModel.customFoodSuggestions.collectAsState()
-        val scanResult by viewModel.scanResult.collectAsState()
-        val isScanning by viewModel.isScanning.collectAsState()
-        val scanError by viewModel.scanError.collectAsState()
-        val showAllFoods by viewModel.showAllFoods.collectAsState()
-        val allCustomFoods by viewModel.allCustomFoods.collectAsState()
-        val caloriesHistory by viewModel.caloriesHistory.collectAsState()
+fun LogScreen(viewModel: LogViewModel = hiltViewModel()) {
+        val mode by viewModel.mode.collectAsStateWithLifecycle()
+        val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+        val searchResult by viewModel.searchResult.collectAsStateWithLifecycle()
+        val searchError by viewModel.searchError.collectAsStateWithLifecycle()
+        val isSearching by viewModel.isSearching.collectAsStateWithLifecycle()
+        val searchStatus by viewModel.searchStatus.collectAsStateWithLifecycle()
+        val foodLog by viewModel.foodLog.collectAsStateWithLifecycle()
+        val calorieGoal by viewModel.calorieGoal.collectAsStateWithLifecycle()
+        val caloriesEaten by viewModel.caloriesEaten.collectAsStateWithLifecycle()
+        val manualName by viewModel.manualName.collectAsStateWithLifecycle()
+        val manualCalories by viewModel.manualCalories.collectAsStateWithLifecycle()
+        val manualProtein by viewModel.manualProtein.collectAsStateWithLifecycle()
+        val manualCarbs by viewModel.manualCarbs.collectAsStateWithLifecycle()
+        val manualFat by viewModel.manualFat.collectAsStateWithLifecycle()
+        val manualSugar by viewModel.manualSugar.collectAsStateWithLifecycle()
+        val aiInput by viewModel.aiInput.collectAsStateWithLifecycle()
+        val aiResults by viewModel.aiResults.collectAsStateWithLifecycle()
+        val isAiParsing by viewModel.isAiParsing.collectAsStateWithLifecycle()
+        val geminiReady by viewModel.geminiReady.collectAsStateWithLifecycle()
+        val customFoodSuggestions by viewModel.customFoodSuggestions.collectAsStateWithLifecycle()
+        val scanResult by viewModel.scanResult.collectAsStateWithLifecycle()
+        val isScanning by viewModel.isScanning.collectAsStateWithLifecycle()
+        val scanError by viewModel.scanError.collectAsStateWithLifecycle()
+        val showAllFoods by viewModel.showAllFoods.collectAsStateWithLifecycle()
+        val allCustomFoods by viewModel.allCustomFoods.collectAsStateWithLifecycle()
+        val caloriesHistory by viewModel.caloriesHistory.collectAsStateWithLifecycle()
 
         LaunchedEffect(Unit) { viewModel.loadData() }
 
@@ -260,7 +261,7 @@ fun LogScreen(viewModel: LogViewModel = viewModel()) {
                 }
         }
 
-        val editingEntry by viewModel.editingEntry.collectAsState()
+        val editingEntry by viewModel.editingEntry.collectAsStateWithLifecycle()
 
         if (editingEntry != null) {
                 EditFoodDialog(viewModel = viewModel)
@@ -1235,14 +1236,14 @@ private fun fmtMacro(v: Float): String {
 
 @Composable
 private fun EditFoodDialog(viewModel: LogViewModel) {
-        val editName by viewModel.editName.collectAsState()
-        val editCalories by viewModel.editCalories.collectAsState()
-        val editProtein by viewModel.editProtein.collectAsState()
-        val editCarbs by viewModel.editCarbs.collectAsState()
-        val editFat by viewModel.editFat.collectAsState()
-        val editSugar by viewModel.editSugar.collectAsState()
-        val editQuantity by viewModel.editQuantity.collectAsState()
-        val autoScale by viewModel.autoScale.collectAsState()
+        val editName by viewModel.editName.collectAsStateWithLifecycle()
+        val editCalories by viewModel.editCalories.collectAsStateWithLifecycle()
+        val editProtein by viewModel.editProtein.collectAsStateWithLifecycle()
+        val editCarbs by viewModel.editCarbs.collectAsStateWithLifecycle()
+        val editFat by viewModel.editFat.collectAsStateWithLifecycle()
+        val editSugar by viewModel.editSugar.collectAsStateWithLifecycle()
+        val editQuantity by viewModel.editQuantity.collectAsStateWithLifecycle()
+        val autoScale by viewModel.autoScale.collectAsStateWithLifecycle()
 
         val textFieldColors =
                 OutlinedTextFieldDefaults.colors(

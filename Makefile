@@ -1,95 +1,150 @@
-.PHONY: setup start teardown build test clean emulator install run log help phone release deploy
+.PHONY: setup start teardown build test ui-test clean emulator install run log help phone release deploy emu-setup emu-start emu-start-dark emu-stop emulate
 
 # Configuration
-GRADLE := ./gradlew
-HOME_DIR := $(HOME)
-EMULATOR := $(HOME_DIR)/Library/Android/sdk/emulator/emulator
-ADB := $(HOME_DIR)/Library/Android/sdk/platform-tools/adb
-AVD_NAME := Pixel_10_Pro
-PACKAGE_NAME := com.fittrack.app
+GRADLE        := ./gradlew
+HOME_DIR      := $(HOME)
+SDK           := /usr/local/share/android-commandlinetools
+EMULATOR      := $(HOME_DIR)/Library/Android/sdk/emulator/emulator
+ADB           := $(HOME_DIR)/Library/Android/sdk/platform-tools/adb
+AVD_NAME      := FitTrack_Test
+PACKAGE_NAME  := com.fittrack.app
 
 # Default target
 all: help
 
 help:
 	@echo "FitTrack Android Makefile"
-	@echo "-------------------------"
-	@echo "make setup    - Verify development environment"
-	@echo "make start    - 🚀 One-Step Dev: Setup, Build, & Launch Emulator/App"
-	@echo "make phone    - 📱 Run on Physical Phone (Must be connected via USB/ADB)"
-	@echo "make teardown - 🛑 Stop Emulator & Clean Build"
-	@echo "make update   - 🔄 Fast Update: Reinstall & Launch App (Keep Emulator Running)"
-	@echo "make build    - Build the debug APK"
-	@echo "make test     - Run unit tests"
-	@echo "make clean    - Clean build artifacts"
-	@echo "make emulator - Launch the Pixel 10 Pro Emulator"
-	@echo "make install  - Install the app to the running emulator/device"
-	@echo "make run      - Install and launch the app on the emulator/device"
-	@echo "make release  - 💎 Build & Sign Production APK (fittrack-release.apk)"
-	@echo "make deploy   - 🚀 Build, Sign, and Install Production APK to Phone"
-	@echo "make log      - View app logs (logcat)"
+	@echo "─────────────────────────────────────────────────"
+	@echo "Emulator (Pixel 10 Pro AVD)"
+	@echo "  make emu-setup       - One-time AVD creation & hardware config"
+	@echo "  make emu-start       - Start emulator (light mode)"
+	@echo "  make emu-start-dark  - Start emulator (dark mode)"
+	@echo "  make emu-stop        - Stop emulator"
+	@echo ""
+	@echo "Development"
+	@echo "  make emulate   - 🟢 Start emulator + build + run (cold start)"
+	@echo "  make start    - 🚀 One-Step Dev: build & launch on emulator"
+	@echo "  make update   - 🔄 Fast update: reinstall without restarting emulator"
+	@echo "  make build    - Build debug APK"
+	@echo "  make run      - Install & launch on running emulator"
+	@echo "  make install  - Install debug APK to running emulator/device"
+	@echo "  make log      - Tail app logcat"
+	@echo ""
+	@echo "Testing"
+	@echo "  make test     - Unit tests (no device needed)"
+	@echo "  make ui-test  - Compose UI tests on emulator (emulator must be running)"
+	@echo ""
+	@echo "Physical Device"
+	@echo "  make phone    - Install & launch on connected USB device"
+	@echo "  make deploy   - Build, sign, and install production APK to phone"
+	@echo "  make release  - Build & sign production APK only"
+	@echo ""
+	@echo "  make setup    - Verify development environment"
+	@echo "  make teardown - Stop emulator & clean build"
+	@echo "  make clean    - Clean build artifacts"
 
-# Verify environment
+# ── Environment ───────────────────────────────────────────────────────────────
 setup:
 	@chmod +x scripts/check_env.sh
 	@./scripts/check_env.sh
 
-# One-step Start
+# ── Emulator lifecycle ────────────────────────────────────────────────────────
+
+## One-time AVD creation
+emu-setup:
+	@chmod +x scripts/emulator_setup.sh
+	@./scripts/emulator_setup.sh
+
+## Start emulator in light mode (default)
+emu-start:
+	@chmod +x scripts/emulator_start.sh
+	@./scripts/emulator_start.sh
+
+## Start emulator in dark mode (for dark-mode UI testing)
+emu-start-dark:
+	@chmod +x scripts/emulator_start.sh
+	@./scripts/emulator_start.sh --dark
+
+## Stop the emulator
+emu-stop:
+	@chmod +x scripts/emulator_stop.sh
+	@./scripts/emulator_stop.sh
+
+# Legacy alias kept for backward compatibility
+emulator: emu-start
+
+# ── Dev workflow ──────────────────────────────────────────────────────────────
+
+## Start emulator, wait for boot, build debug APK, install and launch.
+## Use this for a full cold-start run on the emulator.
+emulate:
+	@echo "▶  Starting emulator..."
+	@chmod +x scripts/emulator_start.sh
+	@./scripts/emulator_start.sh &
+	@echo "⏳  Waiting for emulator to boot..."
+	@$(ADB) wait-for-device
+	@$(ADB) shell 'while [[ "$$(getprop sys.boot_completed)" != "1" ]]; do sleep 2; done'
+	@echo "✅  Emulator ready. Installing app..."
+	@$(GRADLE) installDebug || ($(ADB) uninstall $(PACKAGE_NAME) && $(GRADLE) installDebug)
+	@echo "🚀  Launching app..."
+	@$(ADB) shell monkey -p $(PACKAGE_NAME) -c android.intent.category.LAUNCHER 1
+
 start:
 	@chmod +x scripts/start_dev.sh
 	@./scripts/start_dev.sh
 
-# Run on physical phone
-phone: install
-	@echo "Launching app on physical device..."
-	@$(ADB) -d shell monkey -p $(PACKAGE_NAME) -c android.intent.category.LAUNCHER 1
-
-# Stop Emulator & Clean
 teardown:
 	@chmod +x scripts/teardown.sh
 	@./scripts/teardown.sh
 
-# Update app without restarting emulator
 update: run
 
-# Build the debug APK
 build:
 	$(GRADLE) assembleDebug
 
-# Run unit tests
-test:
-	$(GRADLE) test
-
-# Clean build artifacts
-clean:
-	$(GRADLE) clean
-
-# Launch the Pixel 10 Pro Emulator
-emulator:
-	@echo "Starting Emulator: $(AVD_NAME)..."
-	@$(EMULATOR) -avd $(AVD_NAME) &
-
-# Install the app to the running emulator/device
+# Install the app (handles signature conflict by uninstalling first if needed)
 install:
-	$(GRADLE) installDebug
+	@$(GRADLE) installDebug || ($(ADB) uninstall $(PACKAGE_NAME) && $(GRADLE) installDebug)
 
-# Install and launch the app
 run: install
 	@echo "Launching app..."
 	@$(ADB) shell monkey -p $(PACKAGE_NAME) -c android.intent.category.LAUNCHER 1
 
-# Build and sign the production release APK
+# ── Testing ───────────────────────────────────────────────────────────────────
+
+## Unit tests (no device)
+test:
+	$(GRADLE) test
+
+## Compose UI tests — runs on the Pixel 10 Pro emulator.
+## Emulator must be running (make emu-start) before calling this.
+## These tests are UI-only and do NOT require Gemini Nano.
+ui-test:
+	@echo "Running Compose UI tests on emulator..."
+	$(GRADLE) connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.fittrack.app.ui.test.FitTrackUiTestSuite
+
+# ── Physical device ───────────────────────────────────────────────────────────
+phone: install
+	@echo "Launching app on physical device..."
+	@$(ADB) -d shell monkey -p $(PACKAGE_NAME) -c android.intent.category.LAUNCHER 1
+
 release:
 	$(GRADLE) assembleRelease
 	@cp app/build/outputs/apk/release/app-release.apk ./fittrack-release.apk
-	@echo "Production APK built, signed, and moved to ./fittrack-release.apk"
-	
-# Build, sign, and install production APK on phone
-deploy: release
-	$(ADB) install -r ./fittrack-release.apk
-	$(ADB) push ./fittrack-release.apk /sdcard/Download/
-	@echo "Production APK deployed and pushed to Downloads."
+	@echo "Production APK: ./fittrack-release.apk"
 
-# View logs
+## Build, sign, and install production APK on the physical Pixel 10 Pro.
+## Uninstalls first if a debug build is present (avoids signature conflict).
+deploy: release
+	@$(ADB) -d uninstall $(PACKAGE_NAME) 2>/dev/null || true
+	$(ADB) -d install -r ./fittrack-release.apk
+	$(ADB) -d push ./fittrack-release.apk /sdcard/Download/
+	@echo "✅  Production APK deployed to device."
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+clean:
+	$(GRADLE) clean
+
 log:
-	$(ADB) logcat -s "FitTrackApp"
+	$(ADB) logcat -s "FitTrack_App,FitTrack_HC,FitTrack_AI"
+

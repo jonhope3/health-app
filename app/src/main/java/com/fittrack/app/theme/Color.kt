@@ -3,36 +3,55 @@ package com.fittrack.app.theme
 import androidx.compose.ui.graphics.Color
 
 object AppColors {
-    // Google News Palette — medium variants
-    val primary = Color(0xFF4285F4)      // Medium blue
-    val primaryDark = Color(0xFF174EA6)  // Blue
-    val primaryLight = Color(0xFFD2E3FC) // Light blue (surface only)
+    // ── Brand palette — Google / FitTrack ────────────────────────────────────
+    val primary       = Color(0xFF4285F4) // Google Blue
+    val primaryDark   = Color(0xFF174EA6) // Deep blue
+    val primaryLight  = Color(0xFF8AB4F8) // Light blue — primary for dark surfaces
     val primarySurface = Color(0xFFD2E3FC)
-    val accent = Color(0xFF4285F4)
+    val accent        = Color(0xFF4285F4)
 
-    // Layout
-    val background = Color(0xFFF1F3F4)  // Light grey
-    val surface = Color(0xFFFFFFFF)
+    // ── Light-mode layout ─────────────────────────────────────────────────────
+    val background     = Color(0xFFF1F3F4)
+    val surface        = Color(0xFFFFFFFF)
     val surfaceVariant = Color(0xFFF1F3F4)
+    val border         = Color(0xFFDADCE0)
+    val divider        = Color(0xFFDADCE0)
 
-    // Text
-    val textPrimary = Color(0xFF202124)   // Google Black
-    val textSecondary = Color(0xFF9AA0A6) // Google Grey
-    val textOnPrimary = Color(0xFFFFFFFF)
+    // ── Dark-mode layout ──────────────────────────────────────────────────────
+    // Slightly elevated off-black avoids pure-black "hole" effect.
+    // Cards at darkSurface sit visibly above the darkBackground.
+    val darkBackground      = Color(0xFF141416)  // near-black with a warm tint
+    val darkSurface         = Color(0xFF1F2123)  // card surface — clearly above bg
+    val darkSurfaceVariant  = Color(0xFF2A2D31)  // secondary surface / chips
+    val darkSurfaceElevated = Color(0xFF2E3136)  // modal sheets, dialogs
+    val darkBorder          = Color(0xFF3C4043)  // subtle border
 
-    // Status — medium variants
-    val error = Color(0xFFEA4335)    // Medium red
-    val success = Color(0xFF34A853)  // Medium green
-    val warning = Color(0xFFFBBC04)  // Yellow
+    // ── Text ──────────────────────────────────────────────────────────────────
+    val textPrimary    = Color(0xFF202124) // Google Black
+    val textSecondary  = Color(0xFF5F6368) // Google Grey (light mode)
+    val textOnPrimary  = Color(0xFFFFFFFF)
 
-    // Macros & Specific elements — medium variants
-    val calorie = Color(0xFFEA4335) // Medium red
-    val protein = Color(0xFF34A853) // Medium green
-    val carbs = Color(0xFFFBBC04)   // Yellow
-    val fat = Color(0xFFE37400)     // Orange
-    val sugar = Color(0xFFD81B60)   // Pink/magenta
-    val steps = Color(0xFF4285F4)   // Medium blue
+    // Dark-mode text — high contrast against dark surfaces
+    val darkTextPrimary   = Color(0xFFE8EAED) // ~87% white
+    val darkTextSecondary = Color(0xFFBDC1C6) // ~74% white — was too dim at #9AA0A6
+    val darkTextTertiary  = Color(0xFF80868B) // hint / disabled
 
-    val border = Color(0xFFDADCE0)  // Google divider grey
-    val divider = Color(0xFFDADCE0)
+    // ── Status ────────────────────────────────────────────────────────────────
+    val error   = Color(0xFFEA4335) // Red
+    val success = Color(0xFF34A853) // Green
+    val warning = Color(0xFFFBBC04) // Yellow
+
+    // ── Macro / element colors ─────────────────────────────────────────────────
+    val calorie = Color(0xFFEA4335)
+    val protein = Color(0xFF34A853)
+    val carbs   = Color(0xFFFBBC04)
+    val fat     = Color(0xFFE37400)
+    val sugar   = Color(0xFFD81B60)
+    val steps   = Color(0xFF4285F4)
+
+    // ── Ring chart track colors (visible on dark bg) ───────────────────────────
+    // Light mode: subtle gray track
+    val ringTrackLight = Color(0xFFE0E0E0)
+    // Dark mode: slightly lighter than surface so the arc is visible
+    val ringTrackDark  = Color(0xFF35383C)
 }
