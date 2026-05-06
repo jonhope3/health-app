@@ -231,24 +231,6 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
             Row(
                     modifier =
                             Modifier.fillMaxWidth()
-                                    .combinedClickable(
-                                            interactionSource =
-                                                    remember { MutableInteractionSource() },
-                                            indication = null,
-                                            onClick = {},
-                                            onLongClick = {
-                                                val service =
-                                                        com.fittrack.app.services
-                                                                .HealthConnectService()
-                                                val intents = service.getSettingsIntents(context)
-                                                for (intent in intents) {
-                                                    try {
-                                                        context.startActivity(intent)
-                                                        break
-                                                    } catch (_: Exception) {}
-                                                }
-                                            }
-                                    )
                                     .padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -287,10 +269,6 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                 if (!healthConnectGranted) {
                     Button(
                             onClick = {
-                                Log.d(
-                                        "FitTrack_HC",
-                                        "Connect button tapped. hcInstalled=$hcInstalled"
-                                )
                                 if (hcInstalled) {
                                     val permissions =
                                             setOf(

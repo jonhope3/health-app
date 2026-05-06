@@ -86,11 +86,8 @@ class SettingsViewModel @Inject constructor(
     init {
         loadData()
         viewModelScope.launch {
-            _geminiStatus.value = geminiNanoService.checkAvailability()
-            android.util.Log.d("GeminiNano", "Initial status: ${_geminiStatus.value}")
             _geminiReady.value = geminiNanoService.initIfNeeded()
             _geminiStatus.value = geminiNanoService.checkAvailability()
-            android.util.Log.d("GeminiNano", "Post-init status: ${_geminiStatus.value}, ready=${_geminiReady.value}")
         }
     }
 
