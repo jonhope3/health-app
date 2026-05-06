@@ -263,7 +263,7 @@ fun StepsScreen(viewModel: StepsViewModel = hiltViewModel()) {
                                                 HistoryChart(
                                                         values = stepValues,
                                                         dayNames = dayNames,
-                                                        barColor = AppColors.steps,
+                                                        goal = stepGoal,
                                                         formatValue = {
                                                                 if (it >= 1000) "${it / 1000}k"
                                                                 else it.toString()
@@ -409,7 +409,7 @@ private fun StatCard(
 private fun HistoryChart(
         values: List<Int>,
         dayNames: List<String>,
-        barColor: androidx.compose.ui.graphics.Color,
+        goal: Int,
         formatValue: (Int) -> String
 ) {
         val textSecondaryArgb =
@@ -419,14 +419,35 @@ private fun HistoryChart(
                         (AppColors.textSecondary.green * 255).toInt(),
                         (AppColors.textSecondary.blue * 255).toInt()
                 )
-        val lineArgb =
-                android.graphics.Color.argb(
-                        (barColor.alpha * 255).toInt(),
-                        (barColor.red * 255).toInt(),
-                        (barColor.green * 255).toInt(),
-                        (barColor.blue * 255).toInt()
-                )
-        val maxValue = (values.maxOrNull() ?: 1).coerceAtLeast(1)
+
+        // Color ramp: red → orange → green based on % of goal
+        fun valueColor(v: Int): Int {
+                val pct = if (goal > 0) v.toFloat() / goal else 0f
+                return when {
+                        pct >= 1.0f -> android.graphics.Color.parseColor("#4CAF50") // green
+                        pct >= 0.75f -> {
+                                // lerp orange→green over 0.75..1.0
+                                val t = (pct - 0.75f) / 0.25f
+                                lerpArgb(
+                                        android.graphics.Color.parseColor("#FF9800"),
+                                        android.graphics.Color.parseColor("#4CAF50"),
+                                        t
+                                )
+                        }
+                        pct >= 0.4f -> {
+                                // lerp red→orange over 0.4..0.75
+                                val t = (pct - 0.4f) / 0.35f
+                                lerpArgb(
+                                        android.graphics.Color.parseColor("#F44336"),
+                                        android.graphics.Color.parseColor("#FF9800"),
+                                        t
+                                )
+                        }
+                        else -> android.graphics.Color.parseColor("#F44336") // red
+                }
+        }
+
+        val maxValue = (values.maxOrNull() ?: 1).coerceAtLeast(goal).coerceAtLeast(1)
 
         val revealProgress = remember { Animatable(0f) }
         LaunchedEffect(values) {
@@ -437,118 +458,198 @@ private fun HistoryChart(
                 )
         }
 
-        Canvas(modifier = Modifier.fillMaxWidth().height(140.dp)) {
+        Canvas(modifier = Modifier.fillMaxWidth().height(160.dp)) {
                 val count = values.size
                 if (count == 0) return@Canvas
 
-                val bottomPadding = 28f
-                val topPadding = 16f
+                val bottomPadding = 32f
+                val topPadding = 20f
                 val chartHeight = size.height - bottomPadding - topPadding
                 val slotWidth = size.width / count
 
-                val points =
-                        values.mapIndexed { i, v ->
-                                val x = slotWidth * i + slotWidth / 2f
-                                val y =
-                                        topPadding + chartHeight -
-                                                (v.toFloat() / maxValue) * chartHeight
-                                x to y
-                        }
-
-                val linePaint =
-                        android.graphics.Paint().apply {
-                                color = lineArgb
-                                strokeWidth = 8f
-                                isAntiAlias = true
-                                style = android.graphics.Paint.Style.STROKE
-                                strokeJoin = android.graphics.Paint.Join.ROUND
-                                strokeCap = android.graphics.Paint.Cap.ROUND
-                        }
-                val dotPaint =
-                        android.graphics.Paint().apply {
-                                color = lineArgb
-                                isAntiAlias = true
-                                style = android.graphics.Paint.Style.FILL
-                        }
-                val labelPaint =
-                        android.graphics.Paint().apply {
-                                color = textSecondaryArgb
-                                textAlign = android.graphics.Paint.Align.CENTER
-                                textSize = 32f
-                                isAntiAlias = true
-                                typeface =
-                                        android.graphics.Typeface.create(
-                                                android.graphics.Typeface.DEFAULT,
-                                                android.graphics.Typeface.BOLD
-                                        )
-                        }
-                val valuePaint =
-                        android.graphics.Paint().apply {
-                                color = textSecondaryArgb
-                                textAlign = android.graphics.Paint.Align.CENTER
-                                textSize = 24f
-                                isAntiAlias = true
-                        }
+                val points = values.mapIndexed { i, v ->
+                        val x = slotWidth * i + slotWidth / 2f
+                        val y = topPadding + chartHeight - (v.toFloat() / maxValue) * chartHeight
+                        x to y
+                }
 
                 val t = revealProgress.value
                 val totalPoints = points.size.toFloat()
 
+                // ── Goal reference line ────────────────────────────────────────
+                if (goal > 0) {
+                        val goalY = topPadding + chartHeight - (goal.toFloat() / maxValue) * chartHeight
+                        val goalPaint = android.graphics.Paint().apply {
+                                color = android.graphics.Color.argb(80, 255, 255, 255)
+                                strokeWidth = 2f
+                                isAntiAlias = true
+                                style = android.graphics.Paint.Style.STROKE
+                                pathEffect = android.graphics.DashPathEffect(floatArrayOf(12f, 8f), 0f)
+                        }
+                        drawContext.canvas.nativeCanvas.drawLine(
+                                0f, goalY, size.width * t, goalY, goalPaint
+                        )
+                }
+
+                // ── Gradient fill area ─────────────────────────────────────────
+                if (points.size >= 2) {
+                        val fillPath = android.graphics.Path()
+                        val firstVisible = (t * totalPoints).toInt().coerceIn(0, points.size - 1)
+                        fillPath.moveTo(points[0].first, size.height - bottomPadding)
+                        for (i in 0..firstVisible) {
+                                val segProgress = ((t * totalPoints) - i).coerceIn(0f, 1f)
+                                val (x, y) = points[i]
+                                val nextPt = points.getOrNull(i + 1)
+                                val drawX = if (nextPt != null && segProgress < 1f) {
+                                        x + (nextPt.first - x) * segProgress
+                                } else x
+                                val drawY = if (nextPt != null && segProgress < 1f) {
+                                        y + (nextPt.second - y) * segProgress
+                                } else y
+                                fillPath.lineTo(drawX, drawY)
+                        }
+                        fillPath.lineTo(
+                                points[firstVisible.coerceAtMost(points.size - 1)].first,
+                                size.height - bottomPadding
+                        )
+                        fillPath.close()
+
+                        val fillPaint = android.graphics.Paint().apply {
+                                isAntiAlias = true
+                                style = android.graphics.Paint.Style.FILL
+                                shader = android.graphics.LinearGradient(
+                                        0f, topPadding,
+                                        0f, size.height - bottomPadding,
+                                        intArrayOf(
+                                                android.graphics.Color.argb(60, 255, 255, 255),
+                                                android.graphics.Color.TRANSPARENT
+                                        ),
+                                        null,
+                                        android.graphics.Shader.TileMode.CLAMP
+                                )
+                                alpha = (180 * t).toInt()
+                        }
+                        drawContext.canvas.nativeCanvas.drawPath(fillPath, fillPaint)
+                }
+
+                // ── Gradient line segments ─────────────────────────────────────
                 for (i in 0 until points.size - 1) {
                         val segProgress = ((t * totalPoints) - i).coerceIn(0f, 1f)
                         if (segProgress <= 0f) continue
+
                         val (x1, y1) = points[i]
                         val (x2, y2) = points[i + 1]
                         val ex = x1 + (x2 - x1) * segProgress
                         val ey = y1 + (y2 - y1) * segProgress
-                        linePaint.alpha = (255 * segProgress.coerceAtMost(1f)).toInt()
-                        drawContext.canvas.nativeCanvas.drawLine(x1, y1, ex, ey, linePaint)
+
+                        val c1 = valueColor(values[i])
+                        val c2 = valueColor(values[i + 1])
+                        val blendedC2 = lerpArgb(c1, c2, segProgress)
+
+                        val segPaint = android.graphics.Paint().apply {
+                                isAntiAlias = true
+                                strokeWidth = 8f
+                                style = android.graphics.Paint.Style.STROKE
+                                strokeJoin = android.graphics.Paint.Join.ROUND
+                                strokeCap = android.graphics.Paint.Cap.ROUND
+                                shader = android.graphics.LinearGradient(
+                                        x1, y1, ex, ey,
+                                        intArrayOf(c1, blendedC2),
+                                        null,
+                                        android.graphics.Shader.TileMode.CLAMP
+                                )
+                                alpha = (255 * segProgress.coerceAtMost(1f)).toInt()
+                        }
+                        drawContext.canvas.nativeCanvas.drawLine(x1, y1, ex, ey, segPaint)
+                }
+
+                // ── Dots + labels ──────────────────────────────────────────────
+                val labelPaint = android.graphics.Paint().apply {
+                        color = textSecondaryArgb
+                        textAlign = android.graphics.Paint.Align.CENTER
+                        textSize = 30f
+                        isAntiAlias = true
+                        typeface = android.graphics.Typeface.create(
+                                android.graphics.Typeface.DEFAULT,
+                                android.graphics.Typeface.BOLD
+                        )
+                }
+                val valuePaint = android.graphics.Paint().apply {
+                        color = textSecondaryArgb
+                        textAlign = android.graphics.Paint.Align.CENTER
+                        textSize = 24f
+                        isAntiAlias = true
                 }
 
                 points.forEachIndexed { i, (x, y) ->
                         val pointProgress = ((t * totalPoints) - i).coerceIn(0f, 1f)
                         if (pointProgress <= 0f) return@forEachIndexed
 
-                        val scale =
-                                if (pointProgress < 0.5f) {
-                                        pointProgress * 2f * 1.3f
-                                } else {
-                                        1.3f - (pointProgress - 0.5f) * 2f * 0.3f
-                                }
+                        val dotColor = valueColor(values[i])
+                        val scale = if (pointProgress < 0.5f) pointProgress * 2f * 1.3f
+                                    else 1.3f - (pointProgress - 0.5f) * 2f * 0.3f
+                        val dotRadius = 9f * scale
 
-                        val dotRadius = 8f * scale
-                        dotPaint.alpha = (255 * pointProgress).toInt()
+                        // Outer glow
+                        val glowPaint = android.graphics.Paint().apply {
+                                color = dotColor
+                                isAntiAlias = true
+                                style = android.graphics.Paint.Style.FILL
+                                alpha = (80 * pointProgress).toInt()
+                                maskFilter = android.graphics.BlurMaskFilter(
+                                        dotRadius * 1.5f,
+                                        android.graphics.BlurMaskFilter.Blur.NORMAL
+                                )
+                        }
+                        drawContext.canvas.nativeCanvas.drawCircle(x, y, dotRadius * 1.4f, glowPaint)
+
+                        // Dot fill
+                        val dotPaint = android.graphics.Paint().apply {
+                                color = dotColor
+                                isAntiAlias = true
+                                style = android.graphics.Paint.Style.FILL
+                                alpha = (255 * pointProgress).toInt()
+                        }
                         drawContext.canvas.nativeCanvas.drawCircle(x, y, dotRadius, dotPaint)
+
+                        // White center
                         drawContext.canvas.nativeCanvas.drawCircle(
-                                x,
-                                y,
-                                dotRadius * 0.5f,
+                                x, y, dotRadius * 0.45f,
                                 android.graphics.Paint().apply {
                                         color = android.graphics.Color.WHITE
                                         isAntiAlias = true
                                         style = android.graphics.Paint.Style.FILL
+                                        alpha = (255 * pointProgress).toInt()
                                 }
                         )
 
+                        // Day label
                         labelPaint.alpha = (255 * pointProgress).toInt()
-                        val label = dayNames.getOrElse(i) { "" }
                         drawContext.canvas.nativeCanvas.drawText(
-                                label,
-                                x,
-                                size.height - 4f,
-                                labelPaint
+                                dayNames.getOrElse(i) { "" },
+                                x, size.height - 4f, labelPaint
                         )
 
+                        // Value label above dot
                         if (values[i] > 0 && pointProgress > 0.3f) {
-                                valuePaint.alpha =
-                                        (255 * ((pointProgress - 0.3f) / 0.7f).coerceIn(0f, 1f))
-                                                .toInt()
+                                valuePaint.color = dotColor
+                                valuePaint.alpha = (255 * ((pointProgress - 0.3f) / 0.7f).coerceIn(0f, 1f)).toInt()
                                 drawContext.canvas.nativeCanvas.drawText(
                                         formatValue(values[i]),
-                                        x,
-                                        y - 10f,
-                                        valuePaint
+                                        x, y - 14f, valuePaint
                                 )
                         }
                 }
         }
 }
+
+/** Linearly interpolate between two ARGB colors. */
+private fun lerpArgb(c1: Int, c2: Int, t: Float): Int {
+        val r1 = (c1 shr 16) and 0xFF; val g1 = (c1 shr 8) and 0xFF; val b1 = c1 and 0xFF
+        val r2 = (c2 shr 16) and 0xFF; val g2 = (c2 shr 8) and 0xFF; val b2 = c2 and 0xFF
+        val r  = (r1 + (r2 - r1) * t).toInt().coerceIn(0, 255)
+        val g  = (g1 + (g2 - g1) * t).toInt().coerceIn(0, 255)
+        val b  = (b1 + (b2 - b1) * t).toInt().coerceIn(0, 255)
+        return android.graphics.Color.rgb(r, g, b)
+}
+

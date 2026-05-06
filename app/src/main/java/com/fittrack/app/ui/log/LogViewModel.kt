@@ -69,14 +69,15 @@ class LogViewModel @Inject constructor(
 
     // Edit dialog
     private val _editingEntry   = MutableStateFlow<DiaryItem?>(null)
-    private val _editName       = MutableStateFlow("")
-    private val _editCalories   = MutableStateFlow("")
-    private val _editProtein    = MutableStateFlow("")
-    private val _editCarbs      = MutableStateFlow("")
-    private val _editFat        = MutableStateFlow("")
-    private val _editSugar      = MutableStateFlow("")
-    private val _editQuantity   = MutableStateFlow("")
-    private val _autoScale      = MutableStateFlow(true)
+    private val _editName        = MutableStateFlow("")
+    private val _editCalories    = MutableStateFlow("")
+    private val _editProtein     = MutableStateFlow("")
+    private val _editCarbs       = MutableStateFlow("")
+    private val _editFat         = MutableStateFlow("")
+    private val _editSugar       = MutableStateFlow("")
+    private val _editQuantity    = MutableStateFlow("")
+    private val _autoScale       = MutableStateFlow(true)
+    private val _editMealType    = MutableStateFlow(MealType.OTHER)
 
     val mode:                  StateFlow<String>               = _mode.asStateFlow()
     val searchQuery:           StateFlow<String>               = _searchQuery.asStateFlow()
@@ -114,6 +115,7 @@ class LogViewModel @Inject constructor(
     val editQuantity:          StateFlow<String>               = _editQuantity.asStateFlow()
     val autoScale:             StateFlow<Boolean>              = _autoScale.asStateFlow()
     val mealFilter:            StateFlow<String?>              = _mealFilter.asStateFlow()
+    val editMealType:          StateFlow<MealType>             = _editMealType.asStateFlow()
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -402,15 +404,16 @@ class LogViewModel @Inject constructor(
     // ── Edit dialog ───────────────────────────────────────────────────────────
 
     fun startEdit(entry: DiaryItem) {
-        _editingEntry.value = entry
-        _editName.value     = entry.name
-        _editCalories.value = entry.calories.toString()
-        _editProtein.value  = formatMacro(entry.protein)
-        _editCarbs.value    = formatMacro(entry.carbs)
-        _editFat.value      = formatMacro(entry.fat)
-        _editSugar.value    = formatMacro(entry.sugar)
-        _editQuantity.value = entry.quantity ?: ""
-        _autoScale.value    = true
+        _editingEntry.value  = entry
+        _editName.value      = entry.name
+        _editCalories.value  = entry.calories.toString()
+        _editProtein.value   = formatMacro(entry.protein)
+        _editCarbs.value     = formatMacro(entry.carbs)
+        _editFat.value       = formatMacro(entry.fat)
+        _editSugar.value     = formatMacro(entry.sugar)
+        _editQuantity.value  = entry.quantity ?: ""
+        _autoScale.value     = true
+        _editMealType.value  = entry.mealType
     }
 
     fun setEditName(v: String)     { _editName.value = v }
@@ -420,6 +423,7 @@ class LogViewModel @Inject constructor(
     fun setEditFat(v: String)      { _editFat.value = v }
     fun setEditSugar(v: String)    { _editSugar.value = v }
     fun setAutoScale(v: Boolean)   { _autoScale.value = v }
+    fun setEditMealType(v: MealType) { _editMealType.value = v }
 
     fun setEditQuantity(v: String) {
         _editQuantity.value = v
@@ -463,6 +467,7 @@ class LogViewModel @Inject constructor(
             fat      = _editFat.value.toFloatOrNull()      ?: entry.fat,
             sugar    = _editSugar.value.toFloatOrNull()    ?: entry.sugar,
             quantity = _editQuantity.value.trim().ifBlank { null },
+            mealType = _editMealType.value,
         )
         viewModelScope.launch {
             foodRepository.updateDiaryItem(updated)

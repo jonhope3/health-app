@@ -362,7 +362,7 @@ fun LogScreen(viewModel: LogViewModel = hiltViewModel(), mealFilter: String? = n
                                         HistoryChart(
                                                 values = calorieValues,
                                                 dayNames = dayNames,
-                                                barColor = AppColors.calorie,
+                                                goal = calorieGoal,
                                                 formatValue = { it.toString() }
                                         )
                                 } else {
@@ -1361,6 +1361,17 @@ private fun EditFoodDialog(viewModel: LogViewModel) {
         val editSugar by viewModel.editSugar.collectAsStateWithLifecycle()
         val editQuantity by viewModel.editQuantity.collectAsStateWithLifecycle()
         val autoScale by viewModel.autoScale.collectAsStateWithLifecycle()
+        val editMealType by viewModel.editMealType.collectAsStateWithLifecycle()
+
+        // Meal metadata — same palette as diary tabs
+        data class MealOption(val type: MealType, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector, val color: Color)
+        val mealOptions = listOf(
+            MealOption(MealType.BREAKFAST, "Breakfast", Icons.Filled.WbSunny,    Color(0xFFFF9800)),
+            MealOption(MealType.LUNCH,     "Lunch",     Icons.Filled.LunchDining, Color(0xFF4CAF50)),
+            MealOption(MealType.DINNER,    "Dinner",    Icons.Filled.Bedtime,     Color(0xFF7C5CBF)),
+            MealOption(MealType.SNACK,     "Snacks",    Icons.Filled.Coffee,      Color(0xFF2196F3)),
+            MealOption(MealType.OTHER,     "Other",     Icons.Filled.Restaurant,  Color(0xFF9E9E9E)),
+        )
 
         val textFieldColors =
                 OutlinedTextFieldDefaults.colors(
@@ -1379,6 +1390,61 @@ private fun EditFoodDialog(viewModel: LogViewModel) {
                 },
                 text = {
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+
+                                // ── Meal type picker ────────────────────────────────────
+                                Text(
+                                    text = "Meal",
+                                    fontFamily = interFamily,
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 12.sp,
+                                    color = AppColors.textSecondary,
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    mealOptions.forEach { opt ->
+                                        val isSelected = opt.type == editMealType
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(
+                                                    if (isSelected) opt.color.copy(alpha = 0.15f)
+                                                    else Color.Transparent
+                                                )
+                                                .border(
+                                                    width = if (isSelected) 1.5.dp else 1.dp,
+                                                    color = if (isSelected) opt.color else AppColors.border,
+                                                    shape = RoundedCornerShape(10.dp),
+                                                )
+                                                .clickable { viewModel.setEditMealType(opt.type) }
+                                                .padding(vertical = 7.dp, horizontal = 2.dp),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                                            ) {
+                                                Icon(
+                                                    imageVector = opt.icon,
+                                                    contentDescription = opt.label,
+                                                    tint = if (isSelected) opt.color else AppColors.textSecondary,
+                                                    modifier = Modifier.size(16.dp),
+                                                )
+                                                Text(
+                                                    text = opt.label,
+                                                    fontFamily = interFamily,
+                                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                                    fontSize = 8.sp,
+                                                    color = if (isSelected) opt.color else AppColors.textSecondary,
+                                                    textAlign = TextAlign.Center,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
                                 OutlinedTextField(
                                         value = editName,
                                         onValueChange = { viewModel.setEditName(it) },
@@ -1710,7 +1776,7 @@ private fun AllFoodsDialog(
 private fun HistoryChart(
         values: List<Int>,
         dayNames: List<String>,
-        barColor: androidx.compose.ui.graphics.Color,
+        goal: Int,
         formatValue: (Int) -> String
 ) {
         val textSecondaryArgb =
@@ -1720,14 +1786,26 @@ private fun HistoryChart(
                         (AppColors.textSecondary.green * 255).toInt(),
                         (AppColors.textSecondary.blue * 255).toInt()
                 )
-        val lineArgb =
-                android.graphics.Color.argb(
-                        (barColor.alpha * 255).toInt(),
-                        (barColor.red * 255).toInt(),
-                        (barColor.green * 255).toInt(),
-                        (barColor.blue * 255).toInt()
-                )
-        val maxValue = (values.maxOrNull() ?: 1).coerceAtLeast(1)
+
+        fun valueColor(v: Int): Int {
+                val pct = if (goal > 0) v.toFloat() / goal else 0f
+                return when {
+                        pct >= 1.0f  -> android.graphics.Color.parseColor("#4CAF50")
+                        pct >= 0.75f -> {
+                                val t = (pct - 0.75f) / 0.25f
+                                lerpArgb(android.graphics.Color.parseColor("#FF9800"),
+                                         android.graphics.Color.parseColor("#4CAF50"), t)
+                        }
+                        pct >= 0.4f  -> {
+                                val t = (pct - 0.4f) / 0.35f
+                                lerpArgb(android.graphics.Color.parseColor("#F44336"),
+                                         android.graphics.Color.parseColor("#FF9800"), t)
+                        }
+                        else -> android.graphics.Color.parseColor("#F44336")
+                }
+        }
+
+        val maxValue = (values.maxOrNull() ?: 1).coerceAtLeast(goal).coerceAtLeast(1)
 
         val revealProgress =
                 androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
@@ -1735,70 +1813,72 @@ private fun HistoryChart(
                 revealProgress.snapTo(0f)
                 revealProgress.animateTo(
                         1f,
-                        animationSpec =
-                                androidx.compose.animation.core.tween(
-                                        900,
-                                        easing = androidx.compose.animation.core.FastOutSlowInEasing
-                                )
+                        animationSpec = androidx.compose.animation.core.tween(
+                                900, easing = androidx.compose.animation.core.FastOutSlowInEasing
+                        )
                 )
         }
 
-        Canvas(modifier = Modifier.fillMaxWidth().height(140.dp)) {
+        Canvas(modifier = Modifier.fillMaxWidth().height(160.dp)) {
                 val count = values.size
                 if (count == 0) return@Canvas
 
-                val bottomPadding = 28f
-                val topPadding = 16f
+                val bottomPadding = 32f
+                val topPadding = 20f
                 val chartHeight = size.height - bottomPadding - topPadding
                 val slotWidth = size.width / count
 
-                val points =
-                        values.mapIndexed { i, v ->
-                                val x = slotWidth * i + slotWidth / 2f
-                                val y =
-                                        topPadding + chartHeight -
-                                                (v.toFloat() / maxValue) * chartHeight
-                                x to y
-                        }
-
-                val linePaint =
-                        android.graphics.Paint().apply {
-                                color = lineArgb
-                                strokeWidth = 8f
-                                isAntiAlias = true
-                                style = android.graphics.Paint.Style.STROKE
-                                strokeJoin = android.graphics.Paint.Join.ROUND
-                                strokeCap = android.graphics.Paint.Cap.ROUND
-                        }
-                val dotPaint =
-                        android.graphics.Paint().apply {
-                                color = lineArgb
-                                isAntiAlias = true
-                                style = android.graphics.Paint.Style.FILL
-                        }
-                val labelPaint =
-                        android.graphics.Paint().apply {
-                                color = textSecondaryArgb
-                                textAlign = android.graphics.Paint.Align.CENTER
-                                textSize = 32f
-                                isAntiAlias = true
-                                typeface =
-                                        android.graphics.Typeface.create(
-                                                android.graphics.Typeface.DEFAULT,
-                                                android.graphics.Typeface.BOLD
-                                        )
-                        }
-                val valuePaint =
-                        android.graphics.Paint().apply {
-                                color = textSecondaryArgb
-                                textAlign = android.graphics.Paint.Align.CENTER
-                                textSize = 24f
-                                isAntiAlias = true
-                        }
+                val points = values.mapIndexed { i, v ->
+                        val x = slotWidth * i + slotWidth / 2f
+                        val y = topPadding + chartHeight - (v.toFloat() / maxValue) * chartHeight
+                        x to y
+                }
 
                 val t = revealProgress.value
                 val totalPoints = points.size.toFloat()
 
+                // ── Goal reference line ─────────────────────────────────────────
+                if (goal > 0) {
+                        val goalY = topPadding + chartHeight - (goal.toFloat() / maxValue) * chartHeight
+                        val goalPaint = android.graphics.Paint().apply {
+                                color = android.graphics.Color.argb(80, 255, 255, 255)
+                                strokeWidth = 2f
+                                isAntiAlias = true
+                                style = android.graphics.Paint.Style.STROKE
+                                pathEffect = android.graphics.DashPathEffect(floatArrayOf(12f, 8f), 0f)
+                        }
+                        drawContext.canvas.nativeCanvas.drawLine(0f, goalY, size.width * t, goalY, goalPaint)
+                }
+
+                // ── Gradient fill area ──────────────────────────────────────────
+                if (points.size >= 2) {
+                        val fillPath = android.graphics.Path()
+                        val firstVisible = (t * totalPoints).toInt().coerceIn(0, points.size - 1)
+                        fillPath.moveTo(points[0].first, size.height - bottomPadding)
+                        for (i in 0..firstVisible) {
+                                val segProgress = ((t * totalPoints) - i).coerceIn(0f, 1f)
+                                val (x, y) = points[i]
+                                val nextPt = points.getOrNull(i + 1)
+                                val drawX = if (nextPt != null && segProgress < 1f) x + (nextPt.first - x) * segProgress else x
+                                val drawY = if (nextPt != null && segProgress < 1f) y + (nextPt.second - y) * segProgress else y
+                                fillPath.lineTo(drawX, drawY)
+                        }
+                        fillPath.lineTo(points[firstVisible.coerceAtMost(points.size - 1)].first, size.height - bottomPadding)
+                        fillPath.close()
+                        val fillPaint = android.graphics.Paint().apply {
+                                isAntiAlias = true
+                                style = android.graphics.Paint.Style.FILL
+                                shader = android.graphics.LinearGradient(
+                                        0f, topPadding, 0f, size.height - bottomPadding,
+                                        intArrayOf(android.graphics.Color.argb(60, 255, 255, 255), android.graphics.Color.TRANSPARENT),
+                                        null, android.graphics.Shader.TileMode.CLAMP
+                                )
+                                alpha = (180 * t).toInt()
+                        }
+                        drawContext.canvas.nativeCanvas.drawPath(fillPath, fillPaint)
+                }
+
+                // ── Gradient line segments ──────────────────────────────────────
                 for (i in 0 until points.size - 1) {
                         val segProgress = ((t * totalPoints) - i).coerceIn(0f, 1f)
                         if (segProgress <= 0f) continue
@@ -1806,55 +1886,90 @@ private fun HistoryChart(
                         val (x2, y2) = points[i + 1]
                         val ex = x1 + (x2 - x1) * segProgress
                         val ey = y1 + (y2 - y1) * segProgress
-                        linePaint.alpha = (255 * segProgress.coerceAtMost(1f)).toInt()
-                        drawContext.canvas.nativeCanvas.drawLine(x1, y1, ex, ey, linePaint)
+                        val c1 = valueColor(values[i])
+                        val c2 = valueColor(values[i + 1])
+                        val segPaint = android.graphics.Paint().apply {
+                                isAntiAlias = true
+                                strokeWidth = 8f
+                                style = android.graphics.Paint.Style.STROKE
+                                strokeJoin = android.graphics.Paint.Join.ROUND
+                                strokeCap = android.graphics.Paint.Cap.ROUND
+                                shader = android.graphics.LinearGradient(
+                                        x1, y1, ex, ey,
+                                        intArrayOf(c1, lerpArgb(c1, c2, segProgress)),
+                                        null, android.graphics.Shader.TileMode.CLAMP
+                                )
+                                alpha = (255 * segProgress.coerceAtMost(1f)).toInt()
+                        }
+                        drawContext.canvas.nativeCanvas.drawLine(x1, y1, ex, ey, segPaint)
+                }
+
+                // ── Dots + labels ───────────────────────────────────────────────
+                val labelPaint = android.graphics.Paint().apply {
+                        color = textSecondaryArgb
+                        textAlign = android.graphics.Paint.Align.CENTER
+                        textSize = 30f
+                        isAntiAlias = true
+                        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+                }
+                val valuePaint = android.graphics.Paint().apply {
+                        textAlign = android.graphics.Paint.Align.CENTER
+                        textSize = 24f
+                        isAntiAlias = true
                 }
 
                 points.forEachIndexed { i, (x, y) ->
                         val pointProgress = ((t * totalPoints) - i).coerceIn(0f, 1f)
                         if (pointProgress <= 0f) return@forEachIndexed
+                        val dotColor = valueColor(values[i])
+                        val scale = if (pointProgress < 0.5f) pointProgress * 2f * 1.3f
+                                    else 1.3f - (pointProgress - 0.5f) * 2f * 0.3f
+                        val dotRadius = 9f * scale
 
-                        val scale =
-                                if (pointProgress < 0.5f) {
-                                        pointProgress * 2f * 1.3f
-                                } else {
-                                        1.3f - (pointProgress - 0.5f) * 2f * 0.3f
-                                }
-
-                        val dotRadius = 8f * scale
-                        dotPaint.alpha = (255 * pointProgress).toInt()
-                        drawContext.canvas.nativeCanvas.drawCircle(x, y, dotRadius, dotPaint)
-                        drawContext.canvas.nativeCanvas.drawCircle(
-                                x,
-                                y,
-                                dotRadius * 0.5f,
+                        // Glow
+                        drawContext.canvas.nativeCanvas.drawCircle(x, y, dotRadius * 1.4f,
                                 android.graphics.Paint().apply {
-                                        color = android.graphics.Color.WHITE
-                                        isAntiAlias = true
+                                        color = dotColor; isAntiAlias = true
                                         style = android.graphics.Paint.Style.FILL
-                                }
-                        )
+                                        alpha = (80 * pointProgress).toInt()
+                                        maskFilter = android.graphics.BlurMaskFilter(dotRadius * 1.5f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+                                })
+                        // Fill
+                        drawContext.canvas.nativeCanvas.drawCircle(x, y, dotRadius,
+                                android.graphics.Paint().apply {
+                                        color = dotColor; isAntiAlias = true
+                                        style = android.graphics.Paint.Style.FILL
+                                        alpha = (255 * pointProgress).toInt()
+                                })
+                        // White center
+                        drawContext.canvas.nativeCanvas.drawCircle(x, y, dotRadius * 0.45f,
+                                android.graphics.Paint().apply {
+                                        color = android.graphics.Color.WHITE; isAntiAlias = true
+                                        style = android.graphics.Paint.Style.FILL
+                                        alpha = (255 * pointProgress).toInt()
+                                })
 
+                        // Day label
                         labelPaint.alpha = (255 * pointProgress).toInt()
-                        val label = dayNames.getOrElse(i) { "" }
-                        drawContext.canvas.nativeCanvas.drawText(
-                                label,
-                                x,
-                                size.height - 4f,
-                                labelPaint
-                        )
+                        drawContext.canvas.nativeCanvas.drawText(dayNames.getOrElse(i) { "" }, x, size.height - 4f, labelPaint)
 
+                        // Value label
                         if (values[i] > 0 && pointProgress > 0.3f) {
-                                valuePaint.alpha =
-                                        (255 * ((pointProgress - 0.3f) / 0.7f).coerceIn(0f, 1f))
-                                                .toInt()
-                                drawContext.canvas.nativeCanvas.drawText(
-                                        formatValue(values[i]),
-                                        x,
-                                        y - 10f,
-                                        valuePaint
-                                )
+                                valuePaint.color = dotColor
+                                valuePaint.alpha = (255 * ((pointProgress - 0.3f) / 0.7f).coerceIn(0f, 1f)).toInt()
+                                drawContext.canvas.nativeCanvas.drawText(formatValue(values[i]), x, y - 14f, valuePaint)
                         }
                 }
         }
 }
+
+private fun lerpArgb(c1: Int, c2: Int, t: Float): Int {
+        val r1 = (c1 shr 16) and 0xFF; val g1 = (c1 shr 8) and 0xFF; val b1 = c1 and 0xFF
+        val r2 = (c2 shr 16) and 0xFF; val g2 = (c2 shr 8) and 0xFF; val b2 = c2 and 0xFF
+        return android.graphics.Color.rgb(
+                (r1 + (r2 - r1) * t).toInt().coerceIn(0, 255),
+                (g1 + (g2 - g1) * t).toInt().coerceIn(0, 255),
+                (b1 + (b2 - b1) * t).toInt().coerceIn(0, 255)
+        )
+}
+
