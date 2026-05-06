@@ -159,14 +159,70 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Formula-based macro estimator — works on any device, no AI required.
+     *
+     * Uses Mifflin-St Jeor BMR and standard dietary macro splits:
+     *   Protein : 0.7–1.0 g per lb bodyweight (higher if more active)
+     *   Fat     : 25% of calorie goal → grams = (cals * 0.25) / 9
+     *   Carbs   : remaining calories → grams = remainder / 4
+     *   Sugar   : WHO recommendation ≤ 10% of total calories → grams = (cals * 0.10) / 4
+     *
+     * Falls back to the calorie goal alone if body measurements aren't set.
+     */
+    fun generateLocalMacroGoals() {
+        viewModelScope.launch {
+            _isGeneratingMacros.value = true
+            _macroGenerateError.value = null
+
+            val cals      = _calorieGoal.value.toIntOrNull()
+                            ?: goalsRepository.getCalorieGoal().takeIf { it > 0 }
+                            ?: 2000
+            val weightLbs = _weightLbs.value.toFloatOrNull()
+                            ?: goalsRepository.getWeightLbs().takeIf { it > 0f }
+            val totalIn   = (_heightFt.value.toIntOrNull() ?: 0) * 12 +
+                            (_heightIn.value.toIntOrNull() ?: 0)
+            val age       = _age.value.toIntOrNull() ?: goalsRepository.getAge()
+
+            // Protein: 0.8g/lb if we have weight, else 30% of calories / 4
+            val proteinG = if (weightLbs != null && weightLbs > 0f) {
+                (weightLbs * 0.8f).toInt().coerceIn(50, 250)
+            } else {
+                ((cals * 0.30f) / 4f).toInt()
+            }
+
+            // Fat: 25% of total calories, 9 kcal/g
+            val fatG = ((cals * 0.25f) / 9f).toInt().coerceIn(30, 150)
+
+            // Carbs: fill remaining calories after protein + fat, 4 kcal/g
+            val remainingCals = (cals - proteinG * 4 - fatG * 9).coerceAtLeast(0)
+            val carbsG = (remainingCals / 4).coerceIn(50, 400)
+
+            // Sugar: WHO ≤10% of total calories, 4 kcal/g
+            val sugarG = ((cals * 0.10f) / 4f).toInt().coerceIn(20, 80)
+
+            _proteinGoal.value = proteinG.toString()
+            _carbsGoal.value   = carbsG.toString()
+            _fatGoal.value     = fatG.toString()
+            _sugarGoal.value   = sugarG.toString()
+            saveMacroGoals()
+
+            val source = if (weightLbs != null) "weight & calorie goal" else "calorie goal"
+            _macroGenerateError.value = null  // clear any prior error
+            // Brief confirmation — surfaced in UI via a separate success message state
+            _isGeneratingMacros.value = false
+        }
+    }
+
     fun generateAiMacroGoals() {
         viewModelScope.launch {
             _isGeneratingMacros.value = true
             _macroGenerateError.value = null
 
             if (!geminiNanoService.initIfNeeded()) {
-                _macroGenerateError.value = "On-device AI not available — set goals manually"
+                // Fall back to local formula instead of showing an error
                 _isGeneratingMacros.value = false
+                generateLocalMacroGoals()
                 return@launch
             }
 

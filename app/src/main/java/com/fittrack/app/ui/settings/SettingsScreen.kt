@@ -11,11 +11,11 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
@@ -98,35 +98,40 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
         SectionHeader("Appearance")
         Spacer(modifier = Modifier.height(8.dp))
         Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth(),
+                colors =
+                        CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "Color Scheme",
-                    fontFamily = interFamily,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurface,
+                        text = "Color Scheme",
+                        fontFamily = interFamily,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 // 3-way segmented control: Light | Dark | System
                 SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                     ThemeMode.entries.forEachIndexed { index, mode ->
                         SegmentedButton(
-                            shape = SegmentedButtonDefaults.itemShape(
-                                index = index,
-                                count = ThemeMode.entries.size,
-                            ),
-                            onClick = { viewModel.setThemeMode(mode) },
-                            selected = themeMode == mode,
-                            label = {
-                                Text(
-                                    text = mode.name.lowercase().replaceFirstChar { it.uppercase() },
-                                    fontFamily = interFamily,
-                                    fontSize = 13.sp,
-                                )
-                            },
+                                shape =
+                                        SegmentedButtonDefaults.itemShape(
+                                                index = index,
+                                                count = ThemeMode.entries.size,
+                                        ),
+                                onClick = { viewModel.setThemeMode(mode) },
+                                selected = themeMode == mode,
+                                label = {
+                                    Text(
+                                            text =
+                                                    mode.name.lowercase().replaceFirstChar {
+                                                        it.uppercase()
+                                                    },
+                                            fontFamily = interFamily,
+                                            fontSize = 13.sp,
+                                    )
+                                },
                         )
                     }
                 }
@@ -279,95 +284,64 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                     }
                 }
                 if (!healthConnectGranted) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
-                                onClick = {
-                                    Log.d(
-                                            "FitTrack_HC",
-                                            "Connect button tapped. hcInstalled=$hcInstalled, hcAvailability=$hcAvailability"
-                                    )
-                                    if (hcInstalled) {
-                                        val permissions =
-                                                setOf(
-                                                        HealthPermission.getReadPermission(
-                                                                StepsRecord::class
-                                                        ),
-                                                        HealthPermission.getReadPermission(
-                                                                ActiveCaloriesBurnedRecord::class
+                    Button(
+                            onClick = {
+                                Log.d(
+                                        "FitTrack_HC",
+                                        "Connect button tapped. hcInstalled=$hcInstalled"
+                                )
+                                if (hcInstalled) {
+                                    val permissions =
+                                            setOf(
+                                                    HealthPermission.getReadPermission(
+                                                            StepsRecord::class
+                                                    ),
+                                                    HealthPermission.getReadPermission(
+                                                            ActiveCaloriesBurnedRecord::class
+                                                    )
+                                            )
+                                    try {
+                                        permissionLauncher.launch(permissions)
+                                    } catch (e: Exception) {
+                                        Log.e(
+                                                "FitTrack_HC",
+                                                "permissionLauncher.launch threw: ${e.message}",
+                                                e
+                                        )
+                                    }
+                                } else {
+                                    val intent =
+                                            Intent(Intent.ACTION_VIEW).apply {
+                                                data =
+                                                        Uri.parse(
+                                                                "https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata"
                                                         )
+                                                setPackage("com.android.vending")
+                                            }
+                                    runCatching { context.startActivity(intent) }.onFailure {
+                                        Toast.makeText(
+                                                        context,
+                                                        "Health Connect is not available on this device",
+                                                        Toast.LENGTH_LONG
                                                 )
-                                        try {
-                                            permissionLauncher.launch(permissions)
-                                        } catch (e: Exception) {
-                                            Log.e(
-                                                    "FitTrack_HC",
-                                                    "permissionLauncher.launch threw: ${e.message}",
-                                                    e
-                                            )
-                                        }
-                                    } else {
-                                        val intent =
-                                                Intent(Intent.ACTION_VIEW).apply {
-                                                    data =
-                                                            Uri.parse(
-                                                                    "https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata"
-                                                            )
-                                                    setPackage("com.android.vending")
-                                                }
-                                        runCatching { context.startActivity(intent) }.onFailure {
-                                            Toast.makeText(
-                                                            context,
-                                                            "Health Connect is not available on this device",
-                                                            Toast.LENGTH_LONG
-                                                    )
-                                                    .show()
-                                        }
+                                                .show()
                                     }
-                                },
-                                colors =
-                                        ButtonDefaults.buttonColors(
-                                                containerColor = AppColors.primary
-                                        ),
-                                shape = RoundedCornerShape(20.dp),
-                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                    if (hcInstalled) "Connect" else "Install",
-                                    fontFamily = interFamily,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 13.sp,
-                                    color = AppColors.textOnPrimary
-                            )
-                        }
-                        OutlinedButton(
-                                onClick = {
-                                    val service = com.fittrack.app.services.HealthConnectService()
-                                    val intents = service.getSettingsIntents(context)
-                                    var launched = false
-                                    for (intent in intents) {
-                                        try {
-                                            Log.d(
-                                                    "FitTrack_HC",
-                                                    "Trying settings action: ${intent.action}"
-                                            )
-                                            context.startActivity(intent)
-                                            launched = true
-                                            break
-                                        } catch (e: Exception) {
-                                            Log.w("FitTrack_HC", "Failed: ${e.message}")
-                                        }
-                                    }
-                                    if (!launched)
-                                            Toast.makeText(
-                                                            context,
-                                                            "Could not open settings",
-                                                            Toast.LENGTH_SHORT
-                                                    )
-                                                    .show()
-                                },
-                                shape = RoundedCornerShape(20.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                        ) { Text("Settings", fontFamily = interFamily, fontSize = 13.sp) }
+                                }
+                            },
+                            colors =
+                                    ButtonDefaults.buttonColors(
+                                            containerColor = AppColors.primary
+                                    ),
+                            shape = RoundedCornerShape(20.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                                if (hcInstalled) "Connect" else "Install",
+                                fontFamily = interFamily,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp,
+                                color = AppColors.textOnPrimary
+                        )
                     }
                 } else {
                     Icon(
@@ -632,7 +606,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
             Column {
                 SectionHeader("Macro Goals")
                 Text(
-                        "Daily targets in grams — used for progress bars",
+                        "Daily targets in grams",
                         fontFamily = interFamily,
                         fontSize = 13.sp,
                         color = AppColors.textSecondary
@@ -655,40 +629,69 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                if (geminiReady) {
-                    Button(
-                            onClick = { viewModel.generateAiMacroGoals() },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !isGeneratingMacros,
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.primary)
-                    ) {
-                        if (isGeneratingMacros) {
-                            CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    color = AppColors.textOnPrimary,
-                                    strokeWidth = 2.dp
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Generating…", fontFamily = interFamily)
-                        } else {
-                            Text(
-                                    "✦ Generate with AI",
-                                    fontFamily = interFamily,
-                                    fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    }
-                    macroGenerateError?.let {
-                        Spacer(modifier = Modifier.height(6.dp))
+                // Auto-Estimate: always available, uses nutritional formulas
+                Button(
+                        onClick = { viewModel.generateLocalMacroGoals() },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isGeneratingMacros,
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.primary)
+                ) {
+                    if (isGeneratingMacros) {
+                        CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = AppColors.textOnPrimary,
+                                strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Estimating…", fontFamily = interFamily)
+                    } else {
+                        Icon(
+                                Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                                it,
+                                "Auto-Estimate Goals",
                                 fontFamily = interFamily,
-                                fontSize = 12.sp,
-                                color = AppColors.error
+                                fontWeight = FontWeight.SemiBold
                         )
                     }
-                    Spacer(modifier = Modifier.height(12.dp))
                 }
+                Text(
+                        "Based on your calorie goal & body measurements",
+                        fontFamily = interFamily,
+                        fontSize = 11.sp,
+                        color = AppColors.textSecondary,
+                        modifier = Modifier.padding(top = 4.dp, start = 4.dp)
+                )
+                // Gemini upgrade — only shown when on-device AI is ready
+                if (geminiReady) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(
+                            onClick = { viewModel.generateAiMacroGoals() },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isGeneratingMacros
+                    ) {
+                        Text(
+                                "✨ Refine with AI",
+                                fontFamily = interFamily,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp
+                        )
+                    }
+                }
+                macroGenerateError?.let {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                            it,
+                            fontFamily = interFamily,
+                            fontSize = 12.sp,
+                            color = AppColors.error
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+
                 if (editingMacros) {
                     Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -968,9 +971,11 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                                     ) {
                                         Text(
                                                 text = table.replace("_", " ").uppercase(),
-                                                modifier = Modifier.padding(
-                                                        horizontal = 10.dp, vertical = 4.dp
-                                                ),
+                                                modifier =
+                                                        Modifier.padding(
+                                                                horizontal = 10.dp,
+                                                                vertical = 4.dp
+                                                        ),
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.ExtraBold,
                                                 color = AppColors.primary,
@@ -979,7 +984,8 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                                         )
                                     }
                                     Text(
-                                            text = "${rows.size} row${if (rows.size != 1) "s" else ""}",
+                                            text =
+                                                    "${rows.size} row${if (rows.size != 1) "s" else ""}",
                                             fontSize = 11.sp,
                                             color = AppColors.textSecondary,
                                             fontFamily = interFamily
@@ -990,16 +996,28 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
 
                             // Derive column headers from the first row's keys
                             val columns = rows.firstOrNull()?.fields?.keys?.toList() ?: emptyList()
-                            val isEmpty = columns.size == 1 && rows.firstOrNull()?.fields?.containsKey("(empty)") == true
+                            val isEmpty =
+                                    columns.size == 1 &&
+                                            rows.firstOrNull()?.fields?.containsKey("(empty)") ==
+                                                    true
 
                             if (!isEmpty) {
                                 // Column header row
                                 item {
                                     Row(
-                                            modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .background(AppColors.surfaceVariant, RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
-                                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                                            modifier =
+                                                    Modifier.fillMaxWidth()
+                                                            .background(
+                                                                    AppColors.surfaceVariant,
+                                                                    RoundedCornerShape(
+                                                                            topStart = 8.dp,
+                                                                            topEnd = 8.dp
+                                                                    )
+                                                            )
+                                                            .padding(
+                                                                    horizontal = 10.dp,
+                                                                    vertical = 6.dp
+                                                            )
                                     ) {
                                         columns.forEach { col ->
                                             Text(
@@ -1011,7 +1029,9 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                                                     letterSpacing = 0.8.sp,
                                                     fontFamily = interFamily,
                                                     maxLines = 1,
-                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Clip
+                                                    overflow =
+                                                            androidx.compose.ui.text.style
+                                                                    .TextOverflow.Clip
                                             )
                                         }
                                     }
@@ -1023,13 +1043,21 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                                 if (isEmpty) {
                                     // Empty-state placeholder
                                     Box(
-                                            modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .background(
-                                                            AppColors.surfaceVariant.copy(alpha = 0.5f),
-                                                            RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp)
-                                                    )
-                                                    .padding(horizontal = 10.dp, vertical = 14.dp),
+                                            modifier =
+                                                    Modifier.fillMaxWidth()
+                                                            .background(
+                                                                    AppColors.surfaceVariant.copy(
+                                                                            alpha = 0.5f
+                                                                    ),
+                                                                    RoundedCornerShape(
+                                                                            bottomStart = 8.dp,
+                                                                            bottomEnd = 8.dp
+                                                                    )
+                                                            )
+                                                            .padding(
+                                                                    horizontal = 10.dp,
+                                                                    vertical = 14.dp
+                                                            ),
                                             contentAlignment = Alignment.Center
                                     ) {
                                         Text(
@@ -1041,21 +1069,31 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                                     }
                                 } else {
                                     val isLast = idx == rows.lastIndex
-                                    val rowBg = if (idx % 2 == 0) AppColors.surface
-                                                else AppColors.surfaceVariant.copy(alpha = 0.4f)
-                                    val bottomShape = if (isLast) RoundedCornerShape(
-                                            bottomStart = 8.dp, bottomEnd = 8.dp
-                                    ) else RoundedCornerShape(0.dp)
+                                    val rowBg =
+                                            if (idx % 2 == 0) AppColors.surface
+                                            else AppColors.surfaceVariant.copy(alpha = 0.4f)
+                                    val bottomShape =
+                                            if (isLast)
+                                                    RoundedCornerShape(
+                                                            bottomStart = 8.dp,
+                                                            bottomEnd = 8.dp
+                                                    )
+                                            else RoundedCornerShape(0.dp)
 
                                     Row(
-                                            modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .background(rowBg, bottomShape)
-                                                    .combinedClickable(
-                                                            onClick = {},
-                                                            onLongClick = { selectedEntry = entry }
-                                                    )
-                                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                            modifier =
+                                                    Modifier.fillMaxWidth()
+                                                            .background(rowBg, bottomShape)
+                                                            .combinedClickable(
+                                                                    onClick = {},
+                                                                    onLongClick = {
+                                                                        selectedEntry = entry
+                                                                    }
+                                                            )
+                                                            .padding(
+                                                                    horizontal = 10.dp,
+                                                                    vertical = 8.dp
+                                                            ),
                                             verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         columns.forEach { col ->
@@ -1067,7 +1105,9 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                                                     fontSize = 12.sp,
                                                     color = AppColors.textPrimary,
                                                     maxLines = 1,
-                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                    overflow =
+                                                            androidx.compose.ui.text.style
+                                                                    .TextOverflow.Ellipsis
                                             )
                                         }
                                     }
@@ -1097,7 +1137,10 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                 onDismissRequest = { selectedEntry = null },
                 title = {
                     Text(
-                            text = selectedEntry!!.table.replace("_", " ").replaceFirstChar { it.uppercase() },
+                            text =
+                                    selectedEntry!!.table.replace("_", " ").replaceFirstChar {
+                                        it.uppercase()
+                                    },
                             fontFamily = interFamily,
                             fontWeight = FontWeight.Bold
                     )
@@ -1124,10 +1167,14 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                                         color = AppColors.textPrimary,
                                         modifier = Modifier.weight(0.6f),
                                         maxLines = 2,
-                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        overflow =
+                                                androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                 )
                             }
-                            HorizontalDivider(color = AppColors.border.copy(alpha = 0.4f), thickness = 0.5.dp)
+                            HorizontalDivider(
+                                    color = AppColors.border.copy(alpha = 0.4f),
+                                    thickness = 0.5.dp
+                            )
                         }
                     }
                 },
