@@ -77,6 +77,15 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     val hcAvailability = HealthConnectClient.getSdkStatus(context)
     val hcInstalled = hcAvailability == HealthConnectClient.SDK_AVAILABLE
 
+    // Re-check real Health Connect permission state each time this screen is visible.
+    // Handles the case where the user granted permissions from the Steps screen.
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose {}
+    }
+    androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+        viewModel.loadData()
+    }
+
     val permissionLauncher =
             rememberLauncherForActivityResult(
                     contract = PermissionController.createRequestPermissionResultContract()

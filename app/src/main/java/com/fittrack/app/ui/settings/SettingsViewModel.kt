@@ -2,6 +2,7 @@ package com.fittrack.app.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.content.Context
 import com.fittrack.app.data.GoalsRepository
 import com.fittrack.app.data.ThemeMode
 import com.fittrack.app.data.db.DiaryItemDao
@@ -10,6 +11,7 @@ import com.fittrack.app.data.db.StepsRecordDao
 import com.fittrack.app.services.GeminiNanoService
 import com.fittrack.app.services.HealthConnectService
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +35,7 @@ data class DbEntry(
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val goalsRepository: GoalsRepository,
     private val diaryItemDao: DiaryItemDao,
     private val foodItemDao: FoodItemDao,
@@ -97,6 +100,10 @@ class SettingsViewModel @Inject constructor(
 
     fun loadData() {
         viewModelScope.launch {
+            // Always read the real HC permission state from Health Connect so that
+            // permissions granted on the Steps screen are immediately reflected here.
+            _healthConnectGranted.value = healthConnectService.initialize(context)
+
             _calorieGoal.value = goalsRepository.getCalorieGoal().toString()
             _stepGoal.value    = goalsRepository.getStepGoal().toString()
             _weightLbs.value   = formatFloat(goalsRepository.getWeightLbs())
