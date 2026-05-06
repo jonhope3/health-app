@@ -55,3 +55,31 @@ object AppColors {
     // Dark mode: slightly lighter than surface so the arc is visible
     val ringTrackDark  = Color(0xFF35383C)
 }
+
+/** Flo-inspired warm pink/teal palette for the Family cycle tracking feature. */
+object FamilyColors {
+    // ── Primary — warm pink/rose ──
+    val primary       = Color(0xFFE91E63)
+    val primaryLight  = Color(0xFFF48FB1)
+    val primaryDark   = Color(0xFFC2185B)
+    val primarySurface = Color(0xFFFCE4EC)
+
+    // ── Cycle phases ──
+    val menstrual     = Color(0xFFE57373)
+    val follicular    = Color(0xFF80DEEA)
+    val ovulatory     = Color(0xFF26A69A)
+    val luteal        = Color(0xFFCE93D8)
+
+    // ── Fertility indicators ──
+    val fertileLow    = Color(0xFFBDBDBD)
+    val fertileMedium = Color(0xFFFFD54F)
+    val fertileHigh   = Color(0xFF26A69A)
+
+    // ── Temperature ──
+    val tempLine      = Color(0xFFE91E63)
+    val coverline     = Color(0xFF26A69A)
+
+    // ── Dark mode variants ──
+    val darkPrimary   = Color(0xFFF48FB1)
+    val darkSurface   = Color(0xFF2A1A1F)
+}

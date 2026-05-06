@@ -5,8 +5,11 @@ import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
 import android.util.Log
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
+import androidx.health.connect.client.records.BasalBodyTemperatureRecord
+import androidx.health.connect.client.records.BodyTemperatureRecord
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.request.AggregateRequest
+import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -22,6 +25,12 @@ class HealthConnectService {
     val requiredPermissions = setOf(
         HealthPermission.getReadPermission(StepsRecord::class),
         HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class)
+    )
+
+    /** Additional permissions requested lazily when the Family feature is first accessed. */
+    val familyPermissions = setOf(
+        HealthPermission.getReadPermission(BasalBodyTemperatureRecord::class),
+        HealthPermission.getReadPermission(BodyTemperatureRecord::class),
     )
 
     fun isAvailable(context: Context): Boolean {
@@ -52,6 +61,17 @@ class HealthConnectService {
             isAllGranted
         } catch (e: Exception) {
             Log.e("FitTrack_HC", "initialize exception: ${e.message}", e)
+            false
+        }
+    }
+
+    /** Check if family (temperature) permissions are already granted. */
+    suspend fun hasFamilyPermissions(context: Context): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val healthClient = client ?: HealthConnectClient.getOrCreate(context).also { client = it }
+            val granted = healthClient.permissionController.getGrantedPermissions()
+            granted.containsAll(familyPermissions)
+        } catch (e: Exception) {
             false
         }
     }
@@ -122,6 +142,60 @@ class HealthConnectService {
         }
     }
 
+    /**
+     * Read skin/body temperature from Health Connect for the given date range.
+     * Returns list of (date ISO string, temperature in °F, source label).
+     * Tries BasalBodyTemperatureRecord first, falls back to BodyTemperatureRecord.
+     */
+    suspend fun readTemperatureHistory(
+        startDate: LocalDate,
+        endDate: LocalDate,
+    ): List<Triple<String, Float, String>> = withContext(Dispatchers.IO) {
+        val results = mutableListOf<Triple<String, Float, String>>()
+        val healthClient = client ?: return@withContext results
+        val zone = ZoneId.systemDefault()
+        val startInstant = startDate.atStartOfDay(zone).toInstant()
+        val endInstant = endDate.plusDays(1).atStartOfDay(zone).toInstant()
+
+        try {
+            // BBT records (from Pixel Watch sleep tracking)
+            val bbtResponse = healthClient.readRecords(
+                ReadRecordsRequest(
+                    recordType = BasalBodyTemperatureRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(startInstant, endInstant),
+                )
+            )
+            bbtResponse.records.forEach { record ->
+                val date = record.time.atZone(zone).toLocalDate().toString()
+                val tempC = record.temperature.inCelsius
+                val tempF = (tempC * 9.0 / 5.0 + 32.0).toFloat()
+                results.add(Triple(date, tempF, "HEALTH_CONNECT_BBT"))
+            }
+        } catch (e: Exception) {
+            Log.d("FitTrack_HC", "BBT read failed: ${e.message}")
+        }
+
+        try {
+            // Body temperature records (general)
+            val bodyResponse = healthClient.readRecords(
+                ReadRecordsRequest(
+                    recordType = BodyTemperatureRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(startInstant, endInstant),
+                )
+            )
+            bodyResponse.records.forEach { record ->
+                val date = record.time.atZone(zone).toLocalDate().toString()
+                val tempC = record.temperature.inCelsius
+                val tempF = (tempC * 9.0 / 5.0 + 32.0).toFloat()
+                results.add(Triple(date, tempF, "HEALTH_CONNECT_SKIN"))
+            }
+        } catch (e: Exception) {
+            Log.d("FitTrack_HC", "Body temp read failed: ${e.message}")
+        }
+
+        results
+    }
+
     fun getSettingsIntents(context: Context): List<android.content.Intent> {
         val intents = mutableListOf<android.content.Intent>()
         
@@ -144,3 +218,4 @@ class HealthConnectService {
         return intents
     }
 }
+

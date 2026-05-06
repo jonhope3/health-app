@@ -150,4 +150,87 @@ interface UserSettingsDao {
     @Query("UPDATE user_settings SET nickname      = :v WHERE id = 1") suspend fun setNickname(v: String)
     @Query("UPDATE user_settings SET onboardingDone = :v WHERE id = 1") suspend fun setOnboardingDone(v: Boolean)
     @Query("UPDATE user_settings SET themeMode     = :v WHERE id = 1") suspend fun setThemeMode(v: String)
+    @Query("UPDATE user_settings SET familyEnabled  = :v WHERE id = 1") suspend fun setFamilyEnabled(v: Boolean)
+    @Query("UPDATE user_settings SET familyMode     = :v WHERE id = 1") suspend fun setFamilyMode(v: String)
+    @Query("UPDATE user_settings SET lastPeriodStart = :v WHERE id = 1") suspend fun setLastPeriodStart(v: String?)
 }
+
+// ── CycleRecordDao ───────────────────────────────────────────────────────────
+
+@Dao
+interface CycleRecordDao {
+
+    @Query("SELECT * FROM cycle_record ORDER BY startDate DESC")
+    fun getAllFlow(): Flow<List<CycleRecordEntity>>
+
+    @Query("SELECT * FROM cycle_record ORDER BY startDate DESC")
+    suspend fun getAll(): List<CycleRecordEntity>
+
+    @Query("SELECT * FROM cycle_record WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): CycleRecordEntity?
+
+    /** The current (most recent, unclosed) cycle — cycleLength is null. */
+    @Query("SELECT * FROM cycle_record WHERE cycleLength IS NULL ORDER BY startDate DESC LIMIT 1")
+    suspend fun getCurrentCycle(): CycleRecordEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(record: CycleRecordEntity): Long
+
+    @Update
+    suspend fun update(record: CycleRecordEntity)
+
+    @Query("DELETE FROM cycle_record WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query("DELETE FROM cycle_record")
+    suspend fun deleteAll()
+}
+
+// ── DailyCycleLogDao ─────────────────────────────────────────────────────────
+
+@Dao
+interface DailyCycleLogDao {
+
+    @Query("SELECT * FROM daily_cycle_log WHERE date = :date LIMIT 1")
+    suspend fun getForDate(date: String): DailyCycleLogEntity?
+
+    @Query("SELECT * FROM daily_cycle_log WHERE date = :date LIMIT 1")
+    fun observeForDate(date: String): Flow<DailyCycleLogEntity?>
+
+    @Query("SELECT * FROM daily_cycle_log WHERE date BETWEEN :startDate AND :endDate ORDER BY date ASC")
+    suspend fun getForDateRange(startDate: String, endDate: String): List<DailyCycleLogEntity>
+
+    @Query("SELECT * FROM daily_cycle_log WHERE date BETWEEN :startDate AND :endDate ORDER BY date ASC")
+    fun observeForDateRange(startDate: String, endDate: String): Flow<List<DailyCycleLogEntity>>
+
+    @Query("SELECT * FROM daily_cycle_log WHERE cycleRecordId = :cycleId ORDER BY date ASC")
+    suspend fun getForCycle(cycleId: Long): List<DailyCycleLogEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(log: DailyCycleLogEntity)
+
+    @Query("DELETE FROM daily_cycle_log WHERE date = :date")
+    suspend fun deleteForDate(date: String)
+
+    @Query("DELETE FROM daily_cycle_log")
+    suspend fun deleteAll()
+}
+
+// ── TemperatureReadingDao ────────────────────────────────────────────────────
+
+@Dao
+interface TemperatureReadingDao {
+
+    @Query("SELECT * FROM temperature_reading WHERE date = :date ORDER BY timestamp DESC")
+    suspend fun getForDate(date: String): List<TemperatureReadingEntity>
+
+    @Query("SELECT * FROM temperature_reading WHERE date BETWEEN :startDate AND :endDate ORDER BY date ASC, timestamp DESC")
+    suspend fun getForDateRange(startDate: String, endDate: String): List<TemperatureReadingEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(reading: TemperatureReadingEntity)
+
+    @Query("DELETE FROM temperature_reading")
+    suspend fun deleteAll()
+}
+

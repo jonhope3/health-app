@@ -1,206 +1,123 @@
 # FitTrack Android
 
-This is the Android mobile application for FitTrack.
+Privacy-first health tracking app for Google Pixel 10 Pro.
+Combines food logging, step tracking, fertility/cycle tracking,
+and on-device AI — all data stays on the device.
+
+## Quick Start
+
+```bash
+# Verify environment
+make setup
+
+# Build debug APK
+make build
+
+# Install + launch on connected device
+make run
+```
 
 ## Build Setup
 
-Choose the setup instructions corresponding to your environment.
+### Prerequisites
 
-### Machine 1 Setup (*)
+- Android Studio (latest stable)
+- JDK 17+
+- ADB installed and in PATH
 
-This setup uses Homebrew and standard Android SDK locations (e.g., `$HOME/Library/Android/sdk`).
+### SDK Configuration
 
-1. **Install Java 17**
-   Ensure Java 17 is installed (Run `java -version`).
-   If not, install via Homebrew:
+Create a `local.properties` file in the project root pointing
+to your Android SDK:
 
-   ```bash
-   brew install openjdk@17
-   ```
+```properties
+# macOS default (Homebrew)
+sdk.dir=/Users/<you>/Library/Android/sdk
 
-2. **Install Android Command Line Tools**
-   Install the Android CLI tools using Homebrew:
+# Shared/CI path
+sdk.dir=/usr/local/share/android-commandlinetools
+```
 
-   ```bash
-   brew install --cask android-commandlinetools
-   ```
-
-3. **Install Android SDK Components**
-   Run the following command to install the required SDK platforms and tools:
-
-   ```bash
-   yes | sdkmanager --sdk_root=$HOME/Library/Android/sdk "platform-tools" "platforms;android-35" "build-tools;35.0.0" "emulator" "system-images;android-35;google_apis;x86_64"
-   ```
-
-4. **Configuration**
-   Create a `local.properties` file in the root directory.
-   For this machine, it should point to your user library:
-
-   ```properties
-   sdk.dir=/Users/jon/Library/Android/sdk
-   ```
-
-5. **Emulator Setup**
-   A Pixel 10 Pro (modeled on Pixel 9 Pro specs) AVD has been created.
-   To launch it from the terminal:
-
-   ```bash
-   $HOME/Library/Android/sdk/emulator/emulator -avd Pixel_10_Pro
-   ```
-
-   Alternatively, launch it from VS Code using the **Google Android for VS Code** extension.
-
-    **🚀 Cold Start**:
-    Starts the emulator, waits for it to boot, builds the app, and launches it.
-
-    ```bash
-    make start
-    ```
-
-    **🔄 Fast Update**:
-    Re-builds and re-deploys the app to the already running emulator or physical device.
-
-    ```bash
-    make run
-    ```
-
-    **🛑 Stop Emulator**:
-
-    ```bash
-    make emu-stop
-    ```
-
-### Machine 2 Setup
-
-This setup uses shared paths for the SDK location.
-
-1. **Configuration**
-   Ensure your `local.properties` points to the shared SDK location:
-
-   ```properties
-   sdk.dir=/usr/local/share/android-commandlinetools
-   ```
-
-### Verification & Building (All Machines - Using Makefile)
-
-1. **Verify Environment**
-
-   ```bash
-   make setup
-   ```
-
-2. **Build the Debug APK**
-
-   ```bash
-   make build
-   ```
-
-3. **Run Unit Tests**
-
-   ```bash
-   make test
-   ```
-
-4. **Run Automated UI Tests (Emulator)**
-   These tests require the emulator to be running (`make emu-start`).
-
-   ```bash
-   # Run basic navigation and structure tests
-   make ui-test
-
-   # Run comprehensive form-filling and interaction tests
-   make exhaustive-test
-   ```
-
-### Troubleshooting
-
-If you encounter SDK location errors, ensure that `local.properties` points to the correct directory where your Android SDK is installed for your specific machine.
-
----
-
-## UI Testing & Screenshots
-
-You can take screenshots and interact with the app programmatically using ADB — no need to manually tap the device.
-
-### Prerequisite: Ensure ADB is connected
+### Install SDK Components
 
 ```bash
-# List connected devices (emulator + physical phone)
+yes | sdkmanager \
+  --sdk_root=$HOME/Library/Android/sdk \
+  "platform-tools" \
+  "platforms;android-35" \
+  "build-tools;35.0.0" \
+  "emulator" \
+  "system-images;android-35;google_apis;x86_64"
+```
+
+## Make Targets
+
+```text
+Dev Lifecycle
+  make start       Cold start: emulator + build + launch
+  make run         Fast update: rebuild + launch on device
+  make log         View app logs (Logcat)
+
+Physical Device & Release
+  make phone       Install + launch debug on USB device
+  make deploy      Build, sign, deploy production APK
+
+Testing
+  make test            Unit tests (local)
+  make ui-test         UI navigation tests (emulator)
+  make exhaustive-test Full interaction tests (emulator)
+
+Emulator Control
+  make emu-start   Start emulator
+  make emu-stop    Stop emulator
+  make emu-setup   One-time AVD creation
+
+Utilities
+  make build       Build debug APK
+  make release     Build signed production APK
+  make clean       Clean build artifacts
+  make setup       Verify environment
+```
+
+## ADB Cheat Sheet
+
+```bash
+# List connected devices
 adb devices
+
+# Target physical phone only
+adb -d <command>
 
 # Target emulator only
 adb -e <command>
 
-# Target physical phone only  
-adb -d <command>
-```
+# Launch the app
+adb -d shell am start -n com.fittrack.app/.MainActivity
 
-### Take a Screenshot
-
-```bash
-# Capture to device, then pull to your Mac
+# Take a screenshot
 adb -d shell screencap -p /sdcard/screen.png
 adb -d pull /sdcard/screen.png ~/Desktop/screen.png
 
-# One-liner: emulator
-adb -e shell screencap -p /sdcard/screen.png && adb -e pull /sdcard/screen.png /tmp/screen.png
+# Wake device + dismiss lock
+adb -d shell input keyevent 26
+adb -d shell input keyevent 82
 ```
 
-### Navigate Between Screens Programmatically
+### Navigate Between Tabs
 
-The app uses a bottom navigation bar with 4 tabs. Tap coordinates are based on the screen width divided into quarters.
+The app uses a bottom nav bar with 5 tabs (Home, Diary, Steps,
+Family, Settings). Tap coordinates for 1080-wide screens:
 
 ```bash
-# First: get screen size
-adb -d shell wm size
-# → Physical size: 1080x2400
-
-# Tap bottom nav tabs (y ≈ 90% of screen height)
-# Home (leftmost tab)
-adb -d shell input tap 135 2160
-
-# Log Food
-adb -d shell input tap 405 2160
-
-# Steps
-adb -d shell input tap 675 2160
-
-# Settings
-adb -d shell input tap 945 2160
+adb -d shell input tap 108 2160   # Home
+adb -d shell input tap 324 2160   # Diary
+adb -d shell input tap 540 2160   # Steps
+adb -d shell input tap 756 2160   # Family
+adb -d shell input tap 972 2160   # Settings
 ```
 
-### Launch the App
+## Troubleshooting
 
-```bash
-adb -d shell am start -n com.fittrack.app/.MainActivity
-```
-
-### Wake Device / Dismiss Lock Screen
-
-```bash
-adb -d shell input keyevent 26   # Power button (wake)
-adb -d shell input keyevent 82   # Menu key (dismiss lock)
-```
-
-### Full Screenshot Workflow Example
-
-```bash
-# Wake phone, open app, wait, take screenshot of each tab
-adb -d shell input keyevent 26 && sleep 1
-adb -d shell am start -n com.fittrack.app/.MainActivity && sleep 2
-
-for tab in 135 405 675 945; do
-  adb -d shell input tap $tab 2160 && sleep 1
-  adb -d shell screencap -p /sdcard/tab_$tab.png
-  adb -d pull /sdcard/tab_$tab.png /tmp/tab_$tab.png
-done
-```
-
-### Deploy to Physical Phone
-
-```bash
-make phone
-```
-
-This builds the debug APK and installs it on your connected USB phone automatically.
-
+If you encounter SDK location errors, verify that
+`local.properties` points to the correct Android SDK directory
+for your machine.

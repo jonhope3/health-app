@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import android.content.Context
 import com.fittrack.app.data.GoalsRepository
+import com.fittrack.app.data.FamilyRepository
 import com.fittrack.app.data.ThemeMode
 import com.fittrack.app.data.db.DiaryItemDao
 import com.fittrack.app.data.db.FoodItemDao
@@ -37,6 +38,7 @@ data class DbEntry(
 class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val goalsRepository: GoalsRepository,
+    private val familyRepository: FamilyRepository,
     private val diaryItemDao: DiaryItemDao,
     private val foodItemDao: FoodItemDao,
     private val stepsRecordDao: StepsRecordDao,
@@ -63,6 +65,7 @@ class SettingsViewModel @Inject constructor(
     private val _geminiReady          = MutableStateFlow(false)
     private val _geminiStatus         = MutableStateFlow("checking…")
     private val _dbEntries            = MutableStateFlow<List<DbEntry>>(emptyList())
+    private val _familyEnabled        = MutableStateFlow(false)
 
     val healthConnectGranted: StateFlow<Boolean>      = _healthConnectGranted.asStateFlow()
     val calorieGoal:          StateFlow<String>       = _calorieGoal.asStateFlow()
@@ -81,6 +84,7 @@ class SettingsViewModel @Inject constructor(
     val geminiReady:          StateFlow<Boolean>      = _geminiReady.asStateFlow()
     val geminiStatus:         StateFlow<String>       = _geminiStatus.asStateFlow()
     val dbEntries:            StateFlow<List<DbEntry>> = _dbEntries.asStateFlow()
+    val familyEnabled:        StateFlow<Boolean>       = _familyEnabled.asStateFlow()
 
     /** Reactive theme mode — drives the 3-way picker in Settings UI. */
     val themeMode: StateFlow<ThemeMode> = goalsRepository.themeModeFlow
@@ -117,6 +121,8 @@ class SettingsViewModel @Inject constructor(
             val totalInches = goalsRepository.getHeightIn()
             _heightFt.value = (totalInches / 12).toInt().toString()
             _heightIn.value = (totalInches % 12).toInt().toString()
+
+            _familyEnabled.value = goalsRepository.isFamilyEnabled()
         }
     }
 
@@ -136,6 +142,11 @@ class SettingsViewModel @Inject constructor(
 
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch { goalsRepository.setThemeMode(mode) }
+    }
+
+    fun toggleFamily(enabled: Boolean) {
+        _familyEnabled.value = enabled
+        viewModelScope.launch { goalsRepository.setFamilyEnabled(enabled) }
     }
 
     // ── Persist ───────────────────────────────────────────────────────────────
@@ -284,10 +295,10 @@ class SettingsViewModel @Inject constructor(
     fun nukeDb() {
         viewModelScope.launch {
             goalsRepository.clearAll()
-            // clearAllTables() runs within Room's executor on a background thread
             diaryItemDao.deleteAll()
             foodItemDao.deleteAll()
             stepsRecordDao.deleteAll()
+            familyRepository.deleteAllFamilyData()
             loadData()
         }
     }

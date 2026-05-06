@@ -21,6 +21,7 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var foodRepository: FoodRepository
+    @Inject lateinit var goalsRepository: com.fittrack.app.data.GoalsRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -32,7 +33,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             FitTrackTheme(darkTheme = false) {
-                FitTrackApp()
+                FitTrackApp(goalsRepository)
             }
         }
     }

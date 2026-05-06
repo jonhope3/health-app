@@ -100,4 +100,60 @@ data class UserSettingsEntity(
     val onboardingDone: Boolean = false,
     /** LIGHT = always light  |  DARK = always dark  |  SYSTEM = follow OS */
     val themeMode: ThemeMode = ThemeMode.LIGHT,
+    // ── Family feature ──
+    val familyEnabled: Boolean = true,
+    val familyMode: String = "TRACKING",     // TRACKING or TTC
+    val lastPeriodStart: String? = null,      // ISO-8601 date for initial setup
 )
+
+// ── cycle_record table ───────────────────────────────────────────────────────
+// Tracks each menstrual cycle from period start to next period start.
+
+@Entity(tableName = "cycle_record")
+data class CycleRecordEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val startDate: String,            // ISO-8601 date — first day of period
+    val endDate: String?,             // last day of period bleeding
+    val cycleLength: Int?,            // days until next period started (null if current)
+    val periodLength: Int?,           // days of bleeding
+    val ovulationDate: String?,       // confirmed or estimated ovulation day
+    val ovulationConfidence: String = "LOW", // LOW, MEDIUM, HIGH, VERY_HIGH
+)
+
+// ── daily_cycle_log table ────────────────────────────────────────────────────
+// Per-day symptom/biomarker log — the heart of the tracking system.
+
+@Entity(
+    tableName = "daily_cycle_log",
+    indices = [Index(value = ["date"], unique = true)]
+)
+data class DailyCycleLogEntity(
+    @PrimaryKey val date: String,        // ISO-8601 date
+    val cycleRecordId: Long? = null,     // FK to cycle_record (nullable for unlinked days)
+    val cycleDay: Int? = null,           // day within current cycle (1-indexed)
+    val phase: String? = null,           // MENSTRUAL, FOLLICULAR, OVULATORY, LUTEAL
+    val flowIntensity: String? = null,   // SPOTTING, LIGHT, MEDIUM, HEAVY
+    val cervicalMucus: String? = null,   // DRY, STICKY, CREAMY, WATERY, EGG_WHITE
+    val symptoms: String = "",           // comma-separated: "CRAMPS,BLOATING"
+    val mood: String? = null,            // GOOD, NEUTRAL, LOW, IRRITABLE, ENERGETIC
+    val sexDrive: String? = null,        // LOW, NORMAL, HIGH
+    val sexualActivity: String? = null,  // PROTECTED, UNPROTECTED, NONE
+    val temperature: Float? = null,      // resolved temp for the day (°F)
+    val temperatureSource: String? = null, // MANUAL, HEALTH_CONNECT_SKIN
+)
+
+// ── temperature_reading table ────────────────────────────────────────────────
+// Raw temperature readings (may have multiple per day from different sources).
+
+@Entity(
+    tableName = "temperature_reading",
+    indices = [Index(value = ["date", "source"])]
+)
+data class TemperatureReadingEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val date: String,             // ISO-8601 date
+    val temperatureF: Float,      // stored in Fahrenheit
+    val source: String,           // MANUAL, HEALTH_CONNECT_SKIN
+    val timestamp: Long,          // epoch millis of the reading
+)
+

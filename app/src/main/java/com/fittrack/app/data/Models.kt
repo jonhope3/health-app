@@ -58,3 +58,18 @@ data class ParsedFoodItem(
     val quantity: String = "1 serving",
     val confidence: Float? = null,
 )
+
+// ── Family / Cycle Tracking domain models ────────────────────────────────────
+
+enum class CyclePhase { MENSTRUAL, FOLLICULAR, OVULATORY, LUTEAL }
+enum class FlowIntensity { SPOTTING, LIGHT, MEDIUM, HEAVY }
+enum class CervicalMucusType { DRY, STICKY, CREAMY, WATERY, EGG_WHITE }
+enum class MoodType { GOOD, NEUTRAL, LOW, IRRITABLE, ENERGETIC }
+enum class SexDriveLevel { LOW, NORMAL, HIGH }
+enum class SexualActivityType { PROTECTED, UNPROTECTED, NONE }
+enum class PredictionConfidence { LOW, MEDIUM, HIGH, VERY_HIGH }
+enum class FamilyMode { TRACKING, TTC }
+
+enum class Symptom {
+    CRAMPS, BLOATING, HEADACHE, BREAST_TENDERNESS, FATIGUE
+}

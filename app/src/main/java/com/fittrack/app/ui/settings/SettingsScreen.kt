@@ -346,6 +346,50 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
         HorizontalDivider(color = AppColors.border)
         Spacer(modifier = Modifier.height(16.dp))
 
+        // ── Family Planning ──
+        SectionHeader("Family Planning")
+        Spacer(modifier = Modifier.height(8.dp))
+        Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = AppColors.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                            "Enable Family Tracking",
+                            fontFamily = interFamily,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 15.sp,
+                            color = AppColors.textPrimary
+                    )
+                    Text(
+                            "Menstrual cycle & fertility tracking",
+                            fontFamily = interFamily,
+                            fontSize = 12.sp,
+                            color = AppColors.textSecondary
+                    )
+                }
+                val familyOn by viewModel.familyEnabled.collectAsStateWithLifecycle()
+                Switch(
+                        checked = familyOn,
+                        onCheckedChange = { viewModel.toggleFamily(it) },
+                        colors = SwitchDefaults.colors(
+                                checkedThumbColor = com.fittrack.app.theme.FamilyColors.primary,
+                                checkedTrackColor = com.fittrack.app.theme.FamilyColors.primaryLight.copy(alpha = 0.4f),
+                        )
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider(color = AppColors.border)
+        Spacer(modifier = Modifier.height(16.dp))
+
         // ── Daily Goals (collapsed / edit) ──
         Row(
                 modifier = Modifier.fillMaxWidth(),

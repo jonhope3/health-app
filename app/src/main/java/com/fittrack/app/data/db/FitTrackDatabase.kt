@@ -10,6 +10,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * Room database definition.
  *
  * - v1 → v2: Adds `user_settings` table replacing DataStore for user goals/preferences.
+ * - v2 → v3: Adds Family feature tables (`cycle_record`, `daily_cycle_log`,
+ *   `temperature_reading`) and three new columns on `user_settings`.
  *
  * The database instance is provided as a singleton by Hilt ([com.fittrack.app.di.AppModule]).
  * Do not instantiate this class directly — always inject [FitTrackDatabase],
@@ -21,8 +23,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         FoodItemEntity::class,
         StepsRecordEntity::class,
         UserSettingsEntity::class,
+        CycleRecordEntity::class,
+        DailyCycleLogEntity::class,
+        TemperatureReadingEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -31,6 +36,9 @@ abstract class FitTrackDatabase : RoomDatabase() {
     abstract fun foodItemDao(): FoodItemDao
     abstract fun stepsRecordDao(): StepsRecordDao
     abstract fun userSettingsDao(): UserSettingsDao
+    abstract fun cycleRecordDao(): CycleRecordDao
+    abstract fun dailyCycleLogDao(): DailyCycleLogDao
+    abstract fun temperatureReadingDao(): TemperatureReadingDao
 }
 
 /** v1 → v2: Adds the user_settings singleton table. */
@@ -57,3 +65,58 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         )
     }
 }
+
+/** v2 → v3: Adds Family feature tables and columns on user_settings. */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // ── New columns on user_settings ──
+        db.execSQL("ALTER TABLE user_settings ADD COLUMN familyEnabled INTEGER NOT NULL DEFAULT 1")
+        db.execSQL("ALTER TABLE user_settings ADD COLUMN familyMode TEXT NOT NULL DEFAULT 'TRACKING'")
+        db.execSQL("ALTER TABLE user_settings ADD COLUMN lastPeriodStart TEXT DEFAULT NULL")
+
+        // ── cycle_record ──
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS cycle_record (
+                id                   INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                startDate            TEXT    NOT NULL,
+                endDate              TEXT,
+                cycleLength          INTEGER,
+                periodLength         INTEGER,
+                ovulationDate        TEXT,
+                ovulationConfidence  TEXT    NOT NULL DEFAULT 'LOW'
+            )
+        """.trimIndent())
+
+        // ── daily_cycle_log ──
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS daily_cycle_log (
+                date              TEXT PRIMARY KEY NOT NULL,
+                cycleRecordId     INTEGER,
+                cycleDay          INTEGER,
+                phase             TEXT,
+                flowIntensity     TEXT,
+                cervicalMucus     TEXT,
+                symptoms          TEXT    NOT NULL DEFAULT '',
+                mood              TEXT,
+                sexDrive          TEXT,
+                sexualActivity    TEXT,
+                temperature       REAL,
+                temperatureSource TEXT
+            )
+        """.trimIndent())
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_daily_cycle_log_date ON daily_cycle_log(date)")
+
+        // ── temperature_reading ──
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS temperature_reading (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                date           TEXT    NOT NULL,
+                temperatureF   REAL    NOT NULL,
+                source         TEXT    NOT NULL,
+                timestamp      INTEGER NOT NULL
+            )
+        """.trimIndent())
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_temperature_reading_date_source ON temperature_reading(date, source)")
+    }
+}
+

@@ -34,6 +34,9 @@ class GoalsRepository @Inject constructor(private val dao: UserSettingsDao) {
     val nicknameFlow:       Flow<String>    = settingsFlow.map { it.nickname }
     val onboardingDoneFlow: Flow<Boolean>   = settingsFlow.map { it.onboardingDone }
     val themeModeFlow:      Flow<ThemeMode> = settingsFlow.map { it.themeMode }
+    val familyEnabledFlow:  Flow<Boolean>   = settingsFlow.map { it.familyEnabled }
+    val familyModeFlow:     Flow<String>    = settingsFlow.map { it.familyMode }
+    val lastPeriodStartFlow: Flow<String?>  = settingsFlow.map { it.lastPeriodStart }
 
     // ── One-shot reads ────────────────────────────────────────────────────────
 
@@ -49,6 +52,9 @@ class GoalsRepository @Inject constructor(private val dao: UserSettingsDao) {
     suspend fun getNickname():     String   = nicknameFlow.first()
     suspend fun getThemeMode():    ThemeMode = themeModeFlow.first()
     suspend fun hasCompletedOnboarding(): Boolean = onboardingDoneFlow.first()
+    suspend fun isFamilyEnabled(): Boolean  = familyEnabledFlow.first()
+    suspend fun getFamilyMode():   String   = familyModeFlow.first()
+    suspend fun getLastPeriodStart(): String? = lastPeriodStartFlow.first()
 
     // ── Writes ────────────────────────────────────────────────────────────────
 
@@ -69,7 +75,11 @@ class GoalsRepository @Inject constructor(private val dao: UserSettingsDao) {
     suspend fun setNickname(name: String)  { ensureRow(); dao.setNickname(name.trim()) }
     suspend fun setOnboardingCompleted()   { ensureRow(); dao.setOnboardingDone(true) }
     suspend fun setThemeMode(mode: ThemeMode) { ensureRow(); dao.setThemeMode(mode.name) }
+    suspend fun setFamilyEnabled(enabled: Boolean) { ensureRow(); dao.setFamilyEnabled(enabled) }
+    suspend fun setFamilyMode(mode: String) { ensureRow(); dao.setFamilyMode(mode) }
+    suspend fun setLastPeriodStart(date: String?) { ensureRow(); dao.setLastPeriodStart(date) }
 
     /** Wipe all user goals (Reset & Start Fresh). */
     suspend fun clearAll() = dao.upsert(UserSettingsEntity())
 }
+

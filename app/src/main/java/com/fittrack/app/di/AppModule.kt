@@ -5,11 +5,15 @@ import androidx.room.Room
 import com.fittrack.app.data.FoodRepository
 import com.fittrack.app.data.GoalsRepository
 import com.fittrack.app.data.StepsRepository
+import com.fittrack.app.data.db.CycleRecordDao
+import com.fittrack.app.data.db.DailyCycleLogDao
 import com.fittrack.app.data.db.DiaryItemDao
 import com.fittrack.app.data.db.FitTrackDatabase
 import com.fittrack.app.data.db.FoodItemDao
 import com.fittrack.app.data.db.MIGRATION_1_2
+import com.fittrack.app.data.db.MIGRATION_2_3
 import com.fittrack.app.data.db.StepsRecordDao
+import com.fittrack.app.data.db.TemperatureReadingDao
 import com.fittrack.app.data.db.UserSettingsDao
 import com.fittrack.app.services.GeminiNanoService
 import dagger.Module
@@ -27,7 +31,7 @@ object AppModule {
     @Singleton
     fun provideFitTrackDatabase(@ApplicationContext context: Context): FitTrackDatabase =
         Room.databaseBuilder(context, FitTrackDatabase::class.java, "fittrack.db")
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .build()
 
     @Provides @Singleton
@@ -59,4 +63,13 @@ object AppModule {
     @Provides @Singleton
     fun provideGeminiNanoService(@ApplicationContext context: Context): GeminiNanoService =
         GeminiNanoService(context)
+
+    @Provides @Singleton
+    fun provideCycleRecordDao(db: FitTrackDatabase): CycleRecordDao = db.cycleRecordDao()
+
+    @Provides @Singleton
+    fun provideDailyCycleLogDao(db: FitTrackDatabase): DailyCycleLogDao = db.dailyCycleLogDao()
+
+    @Provides @Singleton
+    fun provideTemperatureReadingDao(db: FitTrackDatabase): TemperatureReadingDao = db.temperatureReadingDao()
 }

@@ -7,6 +7,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Settings
@@ -26,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.compose.NavHost
@@ -33,7 +35,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.fittrack.app.data.GoalsRepository
+import com.fittrack.app.theme.FamilyColors
 import com.fittrack.app.theme.interFamily
+import com.fittrack.app.ui.family.FamilyScreen
 import com.fittrack.app.ui.home.HomeScreen
 import com.fittrack.app.ui.log.LogScreen
 import com.fittrack.app.ui.settings.SettingsScreen
@@ -47,6 +52,7 @@ sealed interface AppRoute {
     @Serializable data object Home     : AppRoute
     @Serializable data class  Log(val mealFilter: String? = null) : AppRoute
     @Serializable data object Steps    : AppRoute
+    @Serializable data object Family   : AppRoute
     @Serializable data object Settings : AppRoute
 }
 
@@ -56,18 +62,25 @@ data class NavItem(
     val icon: ImageVector,
 )
 
-private val navItems = listOf(
-    NavItem(AppRoute.Home,        "Home",     Icons.Filled.Home),
-    NavItem(AppRoute.Log(),       "Diary",    Icons.Filled.Restaurant),
-    NavItem(AppRoute.Steps,       "Steps",    Icons.AutoMirrored.Outlined.DirectionsWalk),
-    NavItem(AppRoute.Settings,    "Settings", Icons.Filled.Settings),
-)
-
 @Composable
-fun FitTrackApp() {
+fun FitTrackApp(goalsRepository: GoalsRepository) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+
+    // Reactively observe family toggle
+    val familyEnabled by goalsRepository.familyEnabledFlow
+        .collectAsStateWithLifecycle(initialValue = false)
+
+    val navItems = buildList {
+        add(NavItem(AppRoute.Home,     "Home",     Icons.Filled.Home))
+        add(NavItem(AppRoute.Log(),    "Diary",    Icons.Filled.Restaurant))
+        add(NavItem(AppRoute.Steps,    "Steps",    Icons.AutoMirrored.Outlined.DirectionsWalk))
+        if (familyEnabled) {
+            add(NavItem(AppRoute.Family, "Family", Icons.Filled.Favorite))
+        }
+        add(NavItem(AppRoute.Settings, "Settings", Icons.Filled.Settings))
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -80,6 +93,9 @@ fun FitTrackApp() {
                     val selected = currentDestination
                         ?.hierarchy
                         ?.any { it.hasRoute(item.route::class) } == true
+
+                    // Use the Family pink accent for the Family tab
+                    val isFamilyItem = item.route is AppRoute.Family
 
                     NavigationBarItem(
                         icon = {
@@ -107,13 +123,23 @@ fun FitTrackApp() {
                                 restoreState = true
                             }
                         },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor   = MaterialTheme.colorScheme.primary,
-                            selectedTextColor   = MaterialTheme.colorScheme.primary,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            indicatorColor      = MaterialTheme.colorScheme.primaryContainer,
-                        ),
+                        colors = if (isFamilyItem) {
+                            NavigationBarItemDefaults.colors(
+                                selectedIconColor   = FamilyColors.primary,
+                                selectedTextColor   = FamilyColors.primary,
+                                unselectedIconColor = FamilyColors.primaryLight,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                indicatorColor      = FamilyColors.primarySurface,
+                            )
+                        } else {
+                            NavigationBarItemDefaults.colors(
+                                selectedIconColor   = MaterialTheme.colorScheme.primary,
+                                selectedTextColor   = MaterialTheme.colorScheme.primary,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                indicatorColor      = MaterialTheme.colorScheme.primaryContainer,
+                            )
+                        },
                     )
                 }
             }
@@ -145,7 +171,9 @@ fun FitTrackApp() {
                 LogScreen(hiltViewModel(), mealFilter = route.mealFilter)
             }
             composable<AppRoute.Steps>    { StepsScreen(hiltViewModel()) }
+            composable<AppRoute.Family>   { FamilyScreen(hiltViewModel()) }
             composable<AppRoute.Settings> { SettingsScreen(hiltViewModel()) }
         }
     }
 }
+
