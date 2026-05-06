@@ -1,5 +1,6 @@
 package com.fittrack.app.services
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
 import com.google.mlkit.genai.common.DownloadStatus
@@ -14,41 +15,42 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.withContext
 
-class GeminiNanoService {
+class GeminiNanoService(private val context: Context) {
 
     private var generativeModel: GenerativeModel? = null
 
+    private fun getModel(): GenerativeModel =
+        generativeModel ?: Generation.getClient().also { generativeModel = it }
+
     suspend fun checkAvailability(): String = withContext(Dispatchers.IO) {
         try {
-            val model = generativeModel ?: Generation.getClient().also { generativeModel = it }
-            when (model.checkStatus()) {
-                FeatureStatus.AVAILABLE -> "available"
+            when (getModel().checkStatus()) {
+                FeatureStatus.AVAILABLE    -> "available"
                 FeatureStatus.DOWNLOADABLE -> "downloadable"
-                FeatureStatus.DOWNLOADING -> "downloading"
-                FeatureStatus.UNAVAILABLE -> "unavailable"
-                else -> "unavailable"
+                FeatureStatus.DOWNLOADING  -> "downloading"
+                FeatureStatus.UNAVAILABLE  -> "unavailable"
+                else                       -> "unavailable"
             }
         } catch (e: Exception) {
-            Log.w("GeminiNano", "checkAvailability failed: ${e.message}")
+            Log.w("GeminiNano", "checkAvailability failed: ${e::class.java.simpleName}: ${e.message}", e)
             "unavailable"
         }
     }
 
     suspend fun downloadModel(): Boolean = withContext(Dispatchers.IO) {
         try {
-            val model = generativeModel ?: Generation.getClient().also { generativeModel = it }
             var success = false
-            model.download().collect { status ->
+            getModel().download().collect { status ->
                 when (status) {
-                    is DownloadStatus.DownloadStarted ->
+                    is DownloadStatus.DownloadStarted   ->
                         Log.d("GeminiNano", "Download started")
-                    is DownloadStatus.DownloadProgress ->
+                    is DownloadStatus.DownloadProgress  ->
                         Log.d("GeminiNano", "Download progress: ${status.totalBytesDownloaded} bytes")
                     is DownloadStatus.DownloadCompleted -> {
                         Log.d("GeminiNano", "Download completed")
                         success = true
                     }
-                    is DownloadStatus.DownloadFailed ->
+                    is DownloadStatus.DownloadFailed    ->
                         Log.e("GeminiNano", "Download failed: ${status.e.message}")
                 }
             }
@@ -61,8 +63,7 @@ class GeminiNanoService {
 
     suspend fun generateContent(prompt: String): String = withContext(Dispatchers.IO) {
         try {
-            val model = generativeModel ?: Generation.getClient().also { generativeModel = it }
-            val response = model.generateContent(prompt)
+            val response = getModel().generateContent(prompt)
             response.candidates.firstOrNull()?.text ?: ""
         } catch (e: Exception) {
             Log.e("GeminiNano", "generateContent failed: ${e.message}")
@@ -72,9 +73,8 @@ class GeminiNanoService {
 
     suspend fun generateContent(bitmap: Bitmap, prompt: String): String = withContext(Dispatchers.IO) {
         try {
-            val model = generativeModel ?: Generation.getClient().also { generativeModel = it }
             val request = generateContentRequest(ImagePart(bitmap), TextPart(prompt)) {}
-            val response = model.generateContent(request)
+            val response = getModel().generateContent(request)
             response.candidates.firstOrNull()?.text ?: ""
         } catch (e: Exception) {
             Log.e("GeminiNano", "generateContent (image) failed: ${e.message}")
@@ -87,7 +87,7 @@ class GeminiNanoService {
             val status = checkAvailability()
             Log.d("GeminiNano", "Status: $status")
             if (status == "available") {
-                runCatching { (generativeModel ?: Generation.getClient().also { generativeModel = it }).warmup() }
+                runCatching { getModel().warmup() }
                 return@withContext true
             }
             if (status == "downloadable" || status == "downloading") {
@@ -96,7 +96,7 @@ class GeminiNanoService {
                     val post = checkAvailability()
                     Log.d("GeminiNano", "Post-download: $post")
                     if (post == "available") {
-                        runCatching { (generativeModel ?: Generation.getClient().also { generativeModel = it }).warmup() }
+                        runCatching { getModel().warmup() }
                         return@withContext true
                     }
                 }

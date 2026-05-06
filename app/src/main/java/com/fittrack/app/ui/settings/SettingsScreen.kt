@@ -62,6 +62,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     val isGeneratingMacros by viewModel.isGeneratingMacros.collectAsStateWithLifecycle()
     val macroGenerateError by viewModel.macroGenerateError.collectAsStateWithLifecycle()
     val geminiReady by viewModel.geminiReady.collectAsStateWithLifecycle()
+    val geminiStatus by viewModel.geminiStatus.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
 
     var editingGoals by remember { mutableStateOf(false) }
@@ -680,6 +681,31 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                                 fontSize = 13.sp
                         )
                     }
+                }
+                // Gemini Nano status chip — always shown for diagnostics
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    val (statusColor, statusLabel) = when (geminiStatus) {
+                        "available" -> AppColors.success to "AI: ready"
+                        "downloadable" -> AppColors.warning to "AI: needs download"
+                        "downloading" -> AppColors.primary to "AI: downloading…"
+                        "checking…" -> AppColors.textSecondary to "AI: checking…"
+                        else -> AppColors.textSecondary to "AI: unavailable on this device"
+                    }
+                    Box(
+                            modifier = Modifier
+                                    .size(6.dp)
+                                    .background(statusColor, androidx.compose.foundation.shape.CircleShape)
+                    )
+                    Text(
+                            statusLabel,
+                            fontFamily = interFamily,
+                            fontSize = 10.sp,
+                            color = statusColor
+                    )
                 }
                 macroGenerateError?.let {
                     Spacer(modifier = Modifier.height(6.dp))

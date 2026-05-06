@@ -119,7 +119,7 @@ dependencies {
     implementation("androidx.health.connect:connect-client:1.1.0")
 
     // ── ML Kit GenAI Prompt (Gemini Nano) ─────────────────────────────────────
-    implementation("com.google.mlkit:genai-prompt:1.0.0-beta1")
+    implementation("com.google.mlkit:genai-prompt:1.0.0-beta2")
 
     // ── Google Fonts for Compose ──────────────────────────────────────────────
     implementation("androidx.compose.ui:ui-text-google-fonts")

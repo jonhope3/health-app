@@ -54,3 +54,12 @@
 # ── Jetpack Navigation (type-safe serializable routes) ───────────────────────
 # @Serializable data objects used as nav routes must survive shrinking
 -keep @kotlinx.serialization.Serializable class com.fittrack.app.** { *; }
+
+# ── ML Kit GenAI (Gemini Nano) ────────────────────────────────────────────────
+# Prevent R8 from stripping the MlKit auto-init ContentProvider and context
+# resolver — without this, Generation.getClient() throws NullPointerException
+# on release builds because the internal context reference is null.
+-keep class com.google.mlkit.** { *; }
+-keep class com.google.android.gms.internal.mlkit_genai_** { *; }
+-keepclassmembers class com.google.mlkit.** { *; }
+-keep class * extends android.content.ContentProvider { *; }

@@ -111,12 +111,18 @@ release:
 	@echo "Production APK: ./fittrack-release.apk"
 
 ## Build, sign, and install production APK on the physical Pixel 10 Pro.
-## Uninstalls first if a debug build is present (avoids signature conflict).
+## Works over USB cable OR WiFi ADB. Override device with: make deploy DEVICE=ip:port
+## Example: make deploy DEVICE=192.168.86.249:39781
+DEVICE ?= $(shell $(ADB) devices | awk '/\tdevice$$/ && !/emulator/' | head -1 | awk '{print $$1}')
 deploy: release
-	@$(ADB) -d uninstall $(PACKAGE_NAME) 2>/dev/null || true
-	$(ADB) -d install -r ./fittrack-release.apk
-	$(ADB) -d push ./fittrack-release.apk /sdcard/Download/
-	@echo "✅  Production APK deployed to device."
+	@if [ -z "$(DEVICE)" ]; then \
+		echo "❌  No physical device found. Connect via USB or run: adb connect <ip>:<port>"; \
+		exit 1; \
+	fi
+	@echo "📱 Deploying to: $(DEVICE)"
+	@$(ADB) -s $(DEVICE) uninstall $(PACKAGE_NAME) 2>/dev/null || true
+	$(ADB) -s $(DEVICE) install -r ./fittrack-release.apk
+	@echo "✅  Production APK deployed to $(DEVICE)"
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
 clean:

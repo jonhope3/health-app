@@ -57,5 +57,6 @@ object AppModule {
 
     /** Singleton so the underlying ML Kit model is initialised only once. */
     @Provides @Singleton
-    fun provideGeminiNanoService(): GeminiNanoService = GeminiNanoService()
+    fun provideGeminiNanoService(@ApplicationContext context: Context): GeminiNanoService =
+        GeminiNanoService(context)
 }

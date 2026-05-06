@@ -11,7 +11,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 class AiFoodParserService(
-    private val geminiNanoService: GeminiNanoService = GeminiNanoService()
+    private val geminiNanoService: GeminiNanoService
 ) {
 
     private val json = Json { ignoreUnknownKeys = true }

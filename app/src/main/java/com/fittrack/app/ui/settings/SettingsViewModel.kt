@@ -58,6 +58,7 @@ class SettingsViewModel @Inject constructor(
     private val _isGeneratingMacros   = MutableStateFlow(false)
     private val _macroGenerateError   = MutableStateFlow<String?>(null)
     private val _geminiReady          = MutableStateFlow(false)
+    private val _geminiStatus         = MutableStateFlow("checking…")
     private val _dbEntries            = MutableStateFlow<List<DbEntry>>(emptyList())
 
     val healthConnectGranted: StateFlow<Boolean>      = _healthConnectGranted.asStateFlow()
@@ -75,6 +76,7 @@ class SettingsViewModel @Inject constructor(
     val isGeneratingMacros:   StateFlow<Boolean>      = _isGeneratingMacros.asStateFlow()
     val macroGenerateError:   StateFlow<String?>      = _macroGenerateError.asStateFlow()
     val geminiReady:          StateFlow<Boolean>      = _geminiReady.asStateFlow()
+    val geminiStatus:         StateFlow<String>       = _geminiStatus.asStateFlow()
     val dbEntries:            StateFlow<List<DbEntry>> = _dbEntries.asStateFlow()
 
     /** Reactive theme mode — drives the 3-way picker in Settings UI. */
@@ -83,7 +85,13 @@ class SettingsViewModel @Inject constructor(
 
     init {
         loadData()
-        viewModelScope.launch { _geminiReady.value = geminiNanoService.initIfNeeded() }
+        viewModelScope.launch {
+            _geminiStatus.value = geminiNanoService.checkAvailability()
+            android.util.Log.d("GeminiNano", "Initial status: ${_geminiStatus.value}")
+            _geminiReady.value = geminiNanoService.initIfNeeded()
+            _geminiStatus.value = geminiNanoService.checkAvailability()
+            android.util.Log.d("GeminiNano", "Post-init status: ${_geminiStatus.value}, ready=${_geminiReady.value}")
+        }
     }
 
     fun onHealthConnectResult(granted: Set<String>) {
