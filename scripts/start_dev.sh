@@ -8,7 +8,7 @@ EMULATOR="$SDK_ROOT/emulator/emulator"
 ADB="$SDK_ROOT/platform-tools/adb"
 AVDMANAGER="avdmanager" # Assuming in PATH from Setup, otherwise we can find it
 
-echo "=== 🚀 FitTrack Android Dev Start ==="
+echo "=== 🚀 HopeHealth Android Dev Start ==="
 
 # 1. Check/Install Dependencies & Create AVD
 if ! "$EMULATOR" -list-avds | grep -q "$AVD_NAME"; then
@@ -59,6 +59,6 @@ echo "🔨 Building & Installing App..."
 
 # 5. Launch
 echo "🚀 Launching App..."
-"$ADB" shell monkey -p com.fittrack.app -c android.intent.category.LAUNCHER 1
+"$ADB" shell monkey -p com.hopehealth.app -c android.intent.category.LAUNCHER 1
 
 echo "=== 🎉 App is running! ==="

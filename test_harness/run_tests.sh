@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Starting FitTrack Automated ADB UI Tests..."
+echo "Starting HopeHealth Automated ADB UI Tests..."
 
 # Build and install
 echo "Building APK..."
@@ -10,8 +10,8 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 # Launch App
 echo "Launching App..."
-adb shell pm clear com.fittrack.app
-adb shell am start -n com.fittrack.app/.MainActivity
+adb shell pm clear com.hopehealth.app
+adb shell am start -n com.hopehealth.app/.MainActivity
 sleep 4
 
 echo "Onboarding Step 1: Entering Name..."
@@ -34,7 +34,7 @@ echo "Navigating Main Screen..."
 adb shell uiautomator dump /sdcard/window_dump.xml
 adb pull /sdcard/window_dump.xml ./test_harness/window_dump.xml
 
-if grep -q "FitTrack" ./test_harness/window_dump.xml; then
+if grep -q "HopeHealth" ./test_harness/window_dump.xml; then
     echo "SUCCESS: Onboarding complete and Home UI rendered correctly!"
 else
     echo "FAILURE: App did not reach Home screen."

@@ -1,4 +1,4 @@
-# FitTrack Testing Harness
+# HopeHealth Testing Harness
 
 Custom testing suite for UI, integration, and AI evaluation
 via ADB.

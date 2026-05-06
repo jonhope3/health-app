@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "FitTrack"
+rootProject.name = "HopeHealth"
 include(":app")

@@ -6,14 +6,14 @@ HOME_DIR      := $(HOME)
 SDK           := /usr/local/share/android-commandlinetools
 EMULATOR      := $(HOME_DIR)/Library/Android/sdk/emulator/emulator
 ADB           := $(HOME_DIR)/Library/Android/sdk/platform-tools/adb
-AVD_NAME      := FitTrack_Test
-PACKAGE_NAME  := com.fittrack.app
+AVD_NAME      := HopeHealth_Test
+PACKAGE_NAME  := com.hopehealth.app
 
 # Default target
 all: help
 
 help:
-	@echo "FitTrack Android Makefile"
+	@echo "HopeHealth Android Makefile"
 	@echo "─────────────────────────────────────────────────"
 	@echo "Dev Lifecycle"
 	@echo "  make start           - 🚀 Cold start: Start emulator + build + launch"
@@ -91,13 +91,13 @@ test:
 ## These tests are UI-only and do NOT require Gemini Nano.
 ui-test:
 	@echo "Running standard UI navigation tests..."
-	$(GRADLE) connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.fittrack.app.ui.test.FitTrackUiTestSuite
+	$(GRADLE) connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.hopehealth.app.ui.test.HopeHealthUiTestSuite
 
 ## Exhaustive Interaction tests — fills every form and clicks every button.
 ## Emulator must be running (make emu-start) before calling this.
 exhaustive-test:
 	@echo "Running comprehensive interaction tests..."
-	$(GRADLE) connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.fittrack.app.ui.test.ExhaustiveInteractionsTest
+	$(GRADLE) connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.hopehealth.app.ui.test.ExhaustiveInteractionsTest
 
 # ── Physical device ───────────────────────────────────────────────────────────
 phone:
@@ -107,8 +107,8 @@ phone:
 
 release:
 	$(GRADLE) assembleRelease
-	@cp app/build/outputs/apk/release/app-release.apk ./fittrack-release.apk
-	@echo "Production APK: ./fittrack-release.apk"
+	@cp app/build/outputs/apk/release/app-release.apk ./hopehealth-release.apk
+	@echo "Production APK: ./hopehealth-release.apk"
 
 ## Build, sign, and install production APK on the physical Pixel 10 Pro.
 ## Works over USB cable OR WiFi ADB. Override device with: make deploy DEVICE=ip:port
@@ -121,7 +121,7 @@ deploy: release
 	fi
 	@echo "📱 Deploying to: $(DEVICE)"
 	@$(ADB) -s $(DEVICE) uninstall $(PACKAGE_NAME) 2>/dev/null || true
-	$(ADB) -s $(DEVICE) install -r ./fittrack-release.apk
+	$(ADB) -s $(DEVICE) install -r ./hopehealth-release.apk
 	@echo "✅  Production APK deployed to $(DEVICE)"
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
@@ -129,5 +129,5 @@ clean:
 	$(GRADLE) clean
 
 log:
-	$(ADB) logcat -s "FitTrack_App,FitTrack_HC,FitTrack_AI"
+	$(ADB) logcat -s "HopeHealth_App,HopeHealth_HC,HopeHealth_AI"
 

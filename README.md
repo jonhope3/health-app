@@ -1,4 +1,4 @@
-# FitTrack Android
+# HopeHealth Android
 
 Privacy-first health tracking app for Google Pixel 10 Pro.
 Combines food logging, step tracking, fertility/cycle tracking,
@@ -92,7 +92,7 @@ adb -d <command>
 adb -e <command>
 
 # Launch the app
-adb -d shell am start -n com.fittrack.app/.MainActivity
+adb -d shell am start -n com.hopehealth.app/.MainActivity
 
 # Take a screenshot
 adb -d shell screencap -p /sdcard/screen.png

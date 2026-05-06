@@ -9,8 +9,8 @@ echo "Starting Log & History Integration Test..."
 
 # Wait for app to be ready
 echo "Restarting app with POPULATE_TEST_DATA intent..."
-adb shell am force-stop com.fittrack.app
-adb shell am start -n com.fittrack.app/.MainActivity --ez POPULATE_TEST_DATA true
+adb shell am force-stop com.hopehealth.app
+adb shell am start -n com.hopehealth.app/.MainActivity --ez POPULATE_TEST_DATA true
 sleep 3
 
 # Tap Log Food tab

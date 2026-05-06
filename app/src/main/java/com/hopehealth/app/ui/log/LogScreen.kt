@@ -1,0 +1,1973 @@
+package com.hopehealth.app.ui.log
+
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Coffee
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LunchDining
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.hopehealth.app.data.DiaryItem
+import com.hopehealth.app.data.FoodItem
+import com.hopehealth.app.data.MealType
+import com.hopehealth.app.data.NutritionResult
+import com.hopehealth.app.theme.AppColors
+import com.hopehealth.app.theme.interFamily
+import com.hopehealth.app.util.fmtNum
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+
+@Composable
+fun LogScreen(viewModel: LogViewModel = hiltViewModel(), mealFilter: String? = null) {
+        val mode by viewModel.mode.collectAsStateWithLifecycle()
+        val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+        val searchResult by viewModel.searchResult.collectAsStateWithLifecycle()
+        val searchError by viewModel.searchError.collectAsStateWithLifecycle()
+        val isSearching by viewModel.isSearching.collectAsStateWithLifecycle()
+        val searchStatus by viewModel.searchStatus.collectAsStateWithLifecycle()
+        val foodLog by viewModel.foodLog.collectAsStateWithLifecycle()
+        val calorieGoal by viewModel.calorieGoal.collectAsStateWithLifecycle()
+        val caloriesEaten by viewModel.caloriesEaten.collectAsStateWithLifecycle()
+        val manualName by viewModel.manualName.collectAsStateWithLifecycle()
+        val manualCalories by viewModel.manualCalories.collectAsStateWithLifecycle()
+        val manualProtein by viewModel.manualProtein.collectAsStateWithLifecycle()
+        val manualCarbs by viewModel.manualCarbs.collectAsStateWithLifecycle()
+        val manualFat by viewModel.manualFat.collectAsStateWithLifecycle()
+        val manualSugar by viewModel.manualSugar.collectAsStateWithLifecycle()
+        val aiInput by viewModel.aiInput.collectAsStateWithLifecycle()
+        val aiResults by viewModel.aiResults.collectAsStateWithLifecycle()
+        val isAiParsing by viewModel.isAiParsing.collectAsStateWithLifecycle()
+        val geminiReady by viewModel.geminiReady.collectAsStateWithLifecycle()
+        val customFoodSuggestions by viewModel.customFoodSuggestions.collectAsStateWithLifecycle()
+        val scanResult by viewModel.scanResult.collectAsStateWithLifecycle()
+        val isScanning by viewModel.isScanning.collectAsStateWithLifecycle()
+        val scanError by viewModel.scanError.collectAsStateWithLifecycle()
+        val showAllFoods by viewModel.showAllFoods.collectAsStateWithLifecycle()
+        val allCustomFoods by viewModel.allCustomFoods.collectAsStateWithLifecycle()
+        val caloriesHistory by viewModel.caloriesHistory.collectAsStateWithLifecycle()
+
+        val mealFilterState by viewModel.mealFilter.collectAsStateWithLifecycle()
+
+        // Apply deep-link filter from HomeScreen on first composition
+        LaunchedEffect(mealFilter) {
+            viewModel.setMealFilter(mealFilter)
+        }
+        LaunchedEffect(Unit) { viewModel.loadData() }
+
+        Column(
+                modifier =
+                        Modifier.fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                                .padding(top = 16.dp, start = 16.dp, end = 16.dp, bottom = 24.dp)
+        ) {
+                Text(
+                        text = "Diary",
+                        fontFamily = interFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 32.sp,
+                        color = AppColors.textPrimary
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                SummaryCard(caloriesEaten = caloriesEaten, calorieGoal = calorieGoal)
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                ModeToggleRow(mode = mode, onModeChange = { viewModel.setMode(it) })
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                when (mode) {
+                        "search" ->
+                                SearchModeContent(
+                                        searchQuery = searchQuery,
+                                        onSearchQueryChange = { viewModel.setSearchQuery(it) },
+                                        onSearch = { viewModel.searchFood() },
+                                        isSearching = isSearching,
+                                        searchStatus = searchStatus,
+                                        searchResult = searchResult,
+                                        searchError = searchError,
+                                        customFoodSuggestions = customFoodSuggestions,
+                                        onSelectCustomFood = {
+                                                viewModel.selectCustomFoodSuggestion(it)
+                                        },
+                                        onAddFromSearch = { targetName, result, grams, unitLabel ->
+                                                viewModel.addFromSearch(
+                                                        targetName,
+                                                        result,
+                                                        grams,
+                                                        unitLabel
+                                                )
+                                        }
+                                )
+                        "ai" ->
+                                AiModeContent(
+                                        aiInput = aiInput,
+                                        onAiInputChange = { viewModel.setAiInput(it) },
+                                        onParse = { viewModel.parseAiInput() },
+                                        isAiParsing = isAiParsing,
+                                        aiResults = aiResults,
+                                        geminiReady = geminiReady,
+                                        onAddParsedItem = { viewModel.addParsedItem(it) },
+                                        onAddAllParsed = { viewModel.addAllParsedItems() }
+                                )
+                        "scan" ->
+                                ScanModeContent(
+                                        geminiReady = geminiReady,
+                                        isScanning = isScanning,
+                                        scanResult = scanResult,
+                                        scanError = scanError,
+                                        onScan = { bitmap -> viewModel.scanNutritionLabel(bitmap) },
+                                        onAddFromScan = { targetName, result, grams, unitLabel ->
+                                                viewModel.addFromSearch(
+                                                        targetName,
+                                                        result,
+                                                        grams,
+                                                        unitLabel
+                                                )
+                                        },
+                                        onClearScan = { viewModel.clearScanResult() }
+                                )
+                        "manual" ->
+                                ManualModeContent(
+                                        manualName = manualName,
+                                        manualCalories = manualCalories,
+                                        manualProtein = manualProtein,
+                                        manualCarbs = manualCarbs,
+                                        manualFat = manualFat,
+                                        manualSugar = manualSugar,
+                                        onNameChange = { viewModel.setManualName(it) },
+                                        onCaloriesChange = { viewModel.setManualCalories(it) },
+                                        onProteinChange = { viewModel.setManualProtein(it) },
+                                        onCarbsChange = { viewModel.setManualCarbs(it) },
+                                        onFatChange = { viewModel.setManualFat(it) },
+                                        onSugarChange = { viewModel.setManualSugar(it) },
+                                        onAdd = { viewModel.addManual() },
+                                        customFoodSuggestions = customFoodSuggestions,
+                                        onSelectCustomFood = {
+                                                viewModel.selectCustomFoodSuggestion(it)
+                                        }
+                                )
+                }
+
+                Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                ) {
+                        Text(
+                                text = "Food Diary",
+                                fontFamily = interFamily,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleLarge,
+                                color = AppColors.textPrimary
+                        )
+                        TextButton(onClick = { viewModel.toggleShowAllFoods(true) }) {
+                                Text(
+                                        text = "Browse History",
+                                        fontFamily = interFamily,
+                                        color = AppColors.primary
+                                )
+                        }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // ── Meal-grouped diary ───────────────────────────────────────
+                val mealOrder = listOf(
+                    MealType.BREAKFAST to Triple("Breakfast", Icons.Filled.WbSunny,    android.graphics.Color.parseColor("#FF9800")),
+                    MealType.LUNCH     to Triple("Lunch",     Icons.Filled.LunchDining, android.graphics.Color.parseColor("#4CAF50")),
+                    MealType.DINNER    to Triple("Dinner",    Icons.Filled.Bedtime,     android.graphics.Color.parseColor("#7C5CBF")),
+                    MealType.SNACK     to Triple("Snacks",    Icons.Filled.Coffee,      android.graphics.Color.parseColor("#2196F3")),
+                )
+                val groupedLog = foodLog.groupBy { it.mealType }
+
+                // Determine active meal tab — default from filter or the first group with items
+                var activeMeal by remember(mealFilterState) {
+                    mutableStateOf(
+                        mealFilterState?.let { filter ->
+                            MealType.values().firstOrNull { it.name == filter }
+                        } ?: (groupedLog.keys.firstOrNull() ?: MealType.BREAKFAST)
+                    )
+                }
+
+                // Pill tabs for meals that have entries, or all if diary is empty
+                val tabMeals = if (groupedLog.isEmpty()) {
+                    mealOrder.map { it.first }
+                } else {
+                    mealOrder.filter { (type, _) -> groupedLog.containsKey(type) }.map { it.first }
+                }
+
+                // Scroll horizontally through tabs
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    tabMeals.forEach { mealType ->
+                        val meta = mealOrder.first { it.first == mealType }.second
+                        val isActive = mealType == activeMeal
+                        val mealColor = Color(meta.third)
+                        val entries = groupedLog[mealType] ?: emptyList()
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isActive) mealColor.copy(alpha = 0.15f) else Color.Transparent)
+                                .border(
+                                    width = if (isActive) 1.5.dp else 1.dp,
+                                    color = if (isActive) mealColor else AppColors.border,
+                                    shape = RoundedCornerShape(12.dp),
+                                )
+                                .clickable { activeMeal = mealType }
+                                .padding(vertical = 8.dp, horizontal = 4.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                            ) {
+                                Icon(
+                                    imageVector = meta.second,
+                                    contentDescription = meta.first,
+                                    tint = if (isActive) mealColor else AppColors.textSecondary,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Text(
+                                    text = meta.first,
+                                    fontFamily = interFamily,
+                                    fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
+                                    fontSize = 10.sp,
+                                    color = if (isActive) mealColor else AppColors.textSecondary,
+                                    textAlign = TextAlign.Center,
+                                )
+                                if (entries.isNotEmpty()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(4.dp)
+                                            .clip(CircleShape)
+                                            .background(mealColor),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // ── Entries for the active meal ─────────────────────────────
+                val activeEntries = groupedLog[activeMeal] ?: emptyList()
+                if (activeEntries.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(AppColors.border.copy(alpha = 0.15f))
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "Nothing logged for ${mealOrder.first { it.first == activeMeal }.second.first} yet",
+                            fontFamily = interFamily,
+                            fontSize = 14.sp,
+                            color = AppColors.textSecondary,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                } else {
+                    activeEntries.forEachIndexed { index, entry ->
+                        TimelineDiaryItem(
+                                entry = entry,
+                                isFirst = index == 0,
+                                isLast = index == activeEntries.size - 1,
+                                onEdit = { viewModel.startEdit(entry) },
+                                onDelete = { viewModel.removeEntry(entry.id) }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Calorie History card
+                Card(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                        colors = CardDefaults.cardColors(containerColor = AppColors.surface),
+                        shape = RoundedCornerShape(12.dp)
+                ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                        text = "Calorie History",
+                                        fontFamily = interFamily,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 16.sp,
+                                        color = AppColors.textPrimary
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                val revCalHistory = caloriesHistory.reversed()
+                                val dayNames =
+                                        revCalHistory.map { (date, _) ->
+                                                java.time.LocalDate.parse(date)
+                                                        .dayOfWeek
+                                                        .getDisplayName(
+                                                                java.time.format.TextStyle.SHORT,
+                                                                java.util.Locale.getDefault()
+                                                        )
+                                        }
+                                val calorieValues = revCalHistory.map { it.second }
+                                if (calorieValues.isNotEmpty() && calorieValues.any { it > 0 }) {
+                                        HistoryChart(
+                                                values = calorieValues,
+                                                dayNames = dayNames,
+                                                goal = calorieGoal,
+                                                formatValue = { it.toString() }
+                                        )
+                                } else {
+                                        Text(
+                                                text = "No calorie data yet",
+                                                fontFamily = interFamily,
+                                                fontSize = 14.sp,
+                                                color = AppColors.textSecondary,
+                                                modifier = Modifier.padding(32.dp)
+                                        )
+                                }
+                        }
+                }
+        }
+
+        val editingEntry by viewModel.editingEntry.collectAsStateWithLifecycle()
+
+        if (editingEntry != null) {
+                EditFoodDialog(viewModel = viewModel)
+        }
+
+        if (showAllFoods) {
+                AllFoodsDialog(
+                        foods = allCustomFoods,
+                        onDismiss = { viewModel.toggleShowAllFoods(false) },
+                        onSelect = {
+                                viewModel.selectCustomFoodSuggestion(it)
+                                viewModel.toggleShowAllFoods(false)
+                        },
+                        onRemove = { viewModel.removeFoodFromHistory(it.name) }
+                )
+        }
+}
+
+@Composable
+private fun TimelineDiaryItem(
+        entry: DiaryItem,
+        isFirst: Boolean,
+        isLast: Boolean,
+        onEdit: () -> Unit,
+        onDelete: () -> Unit
+) {
+        Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.width(32.dp)
+                ) {
+                        Box(
+                                modifier =
+                                        Modifier.width(2.dp)
+                                                .height(24.dp)
+                                                .background(
+                                                        if (isFirst) Color.Transparent
+                                                        else AppColors.border
+                                                )
+                        )
+                        Box(
+                                modifier =
+                                        Modifier.size(12.dp)
+                                                .background(AppColors.primary, CircleShape)
+                                                .border(2.dp, AppColors.surface, CircleShape)
+                        )
+                        Box(
+                                modifier =
+                                        Modifier.width(2.dp)
+                                                .fillMaxHeight()
+                                                .background(
+                                                        if (isLast) Color.Transparent
+                                                        else AppColors.border
+                                                )
+                        )
+                }
+
+                Column(modifier = Modifier.padding(bottom = 16.dp, start = 8.dp)) {
+                        DiaryItemCard(entry, onEdit, onDelete)
+                }
+        }
+}
+
+@Composable
+private fun SummaryCard(caloriesEaten: Int, calorieGoal: Int) {
+        val progress =
+                if (calorieGoal > 0) (caloriesEaten.toFloat() / calorieGoal).coerceIn(0f, 1f)
+                else 0f
+
+        Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = AppColors.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                                text = "${fmtNum(caloriesEaten)} / ${fmtNum(calorieGoal)} cal",
+                                fontFamily = interFamily,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleLarge,
+                                color = AppColors.textPrimary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LinearProgressIndicator(
+                                progress = { progress },
+                                modifier =
+                                        Modifier.fillMaxWidth()
+                                                .height(6.dp)
+                                                .clip(RoundedCornerShape(3.dp)),
+                                color = AppColors.primary,
+                                trackColor = AppColors.surfaceVariant,
+                                drawStopIndicator = {}
+                        )
+                }
+        }
+}
+
+@Composable
+private fun ModeToggleRow(mode: String, onModeChange: (String) -> Unit) {
+        val modes =
+                listOf(
+                        Triple("search", "Search", Icons.Filled.Search),
+                        Triple("ai", "AI", Icons.Filled.AutoAwesome),
+                        Triple("scan", "Scan", Icons.Filled.CameraAlt),
+                        Triple("manual", "Manual", Icons.Filled.Add)
+                )
+
+        Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+                Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                        ModeCard(
+                                modeItem = modes[0],
+                                isSelected = mode == modes[0].first,
+                                onModeChange = onModeChange,
+                                modifier = Modifier.weight(1f)
+                        )
+                        ModeCard(
+                                modeItem = modes[1],
+                                isSelected = mode == modes[1].first,
+                                onModeChange = onModeChange,
+                                modifier = Modifier.weight(1f)
+                        )
+                }
+                Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                        ModeCard(
+                                modeItem = modes[2],
+                                isSelected = mode == modes[2].first,
+                                onModeChange = onModeChange,
+                                modifier = Modifier.weight(1f)
+                        )
+                        ModeCard(
+                                modeItem = modes[3],
+                                isSelected = mode == modes[3].first,
+                                onModeChange = onModeChange,
+                                modifier = Modifier.weight(1f)
+                        )
+                }
+        }
+}
+
+@Composable
+private fun ModeCard(
+        modeItem: Triple<String, String, ImageVector>,
+        isSelected: Boolean,
+        onModeChange: (String) -> Unit,
+        modifier: Modifier = Modifier
+) {
+        val (id, label, icon) = modeItem
+
+        val containerColor by
+                animateColorAsState(
+                        if (isSelected) AppColors.primary else AppColors.surfaceVariant,
+                        label = "bg_anim"
+                )
+        val contentColor by
+                animateColorAsState(
+                        if (isSelected) AppColors.surface else AppColors.textPrimary,
+                        label = "text_anim"
+                )
+        val elevation by animateDpAsState(if (isSelected) 6.dp else 2.dp, label = "elev_anim")
+
+        Card(
+                modifier = modifier.height(80.dp).clickable { onModeChange(id) },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = containerColor),
+                elevation = CardDefaults.cardElevation(defaultElevation = elevation)
+        ) {
+                Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                ) {
+                        Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                tint = contentColor,
+                                modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                                text = label,
+                                fontFamily = interFamily,
+                                fontWeight =
+                                        if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = contentColor
+                        )
+                }
+        }
+}
+
+@Composable
+private fun SearchModeContent(
+        searchQuery: String,
+        onSearchQueryChange: (String) -> Unit,
+        onSearch: () -> Unit,
+        isSearching: Boolean,
+        searchStatus: String?,
+        searchResult: com.hopehealth.app.data.NutritionResult?,
+        searchError: String?,
+        customFoodSuggestions: List<FoodItem>,
+        onSelectCustomFood: (FoodItem) -> Unit,
+        onAddFromSearch: (String, com.hopehealth.app.data.NutritionResult, Float, String) -> Unit
+) {
+        val keyboardController = LocalSoftwareKeyboardController.current
+
+        Column {
+                Text(
+                        text = "Search Online",
+                        fontFamily = interFamily,
+                        fontWeight = FontWeight.SemiBold,
+                        color = AppColors.textPrimary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                ) {
+                        OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = onSearchQueryChange,
+                                label = { Text("Search food", fontFamily = interFamily) },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                        )
+                        Button(
+                                onClick = {
+                                        keyboardController?.hide()
+                                        onSearch()
+                                },
+                                enabled = !isSearching && searchQuery.isNotBlank()
+                        ) {
+                                if (isSearching) {
+                                        CircularProgressIndicator(
+                                                modifier = Modifier.padding(8.dp),
+                                                color = AppColors.textOnPrimary,
+                                                strokeWidth = 2.dp
+                                        )
+                                } else {
+                                        Text("Search", fontFamily = interFamily)
+                                }
+                        }
+                }
+
+                if (customFoodSuggestions.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        customFoodSuggestions.take(5).forEach { food ->
+                                Text(
+                                        text = food.name,
+                                        fontFamily = interFamily,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = AppColors.primary,
+                                        modifier =
+                                                Modifier.padding(vertical = 4.dp).clickable {
+                                                        onSelectCustomFood(food)
+                                                }
+                                )
+                        }
+                }
+
+                if (isSearching && searchStatus != null) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                        ) {
+                                Text(
+                                        text = searchStatus,
+                                        fontFamily = interFamily,
+                                        color = AppColors.textSecondary,
+                                        style = MaterialTheme.typography.bodyMedium
+                                )
+                        }
+                }
+
+                searchError?.let { error ->
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                                text = error,
+                                fontFamily = interFamily,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = AppColors.error
+                        )
+                }
+
+                searchResult?.let { result ->
+                        Spacer(modifier = Modifier.height(16.dp))
+                        NutritionCard(result = result, onAdd = onAddFromSearch)
+                }
+        }
+}
+
+@Composable
+private fun AiModeContent(
+        aiInput: String,
+        onAiInputChange: (String) -> Unit,
+        onParse: () -> Unit,
+        isAiParsing: Boolean,
+        aiResults: List<com.hopehealth.app.data.ParsedFoodItem>,
+        geminiReady: Boolean,
+        onAddParsedItem: (com.hopehealth.app.data.ParsedFoodItem) -> Unit,
+        onAddAllParsed: () -> Unit
+) {
+        Column {
+                if (!geminiReady) {
+                        Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors =
+                                        CardDefaults.cardColors(
+                                                containerColor =
+                                                        AppColors.warning.copy(alpha = 0.1f)
+                                        )
+                        ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                        imageVector = Icons.Filled.AutoAwesome,
+                                                        contentDescription = null,
+                                                        tint = AppColors.warning
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                        text = "On-Device AI Unavailable",
+                                                        fontFamily = interFamily,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        style = MaterialTheme.typography.bodyLarge,
+                                                        color = AppColors.textPrimary
+                                                )
+                                        }
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                                text =
+                                                        "On-device AI needs to download a model to your device. This can take a few hours after initial setup. Make sure your device is connected to WiFi and try again later.\n\nIn the meantime, use Search or Manual mode to log food.",
+                                                fontFamily = interFamily,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = AppColors.textSecondary
+                                        )
+                                }
+                        }
+                        return
+                }
+
+                Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                ) {
+                        Icon(
+                                imageVector = Icons.Filled.AutoAwesome,
+                                contentDescription = null,
+                                tint = AppColors.primary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                                text = "Describe what you ate...",
+                                fontFamily = interFamily,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = AppColors.textSecondary
+                        )
+                }
+
+                OutlinedTextField(
+                        value = aiInput,
+                        onValueChange = onAiInputChange,
+                        modifier = Modifier.fillMaxWidth().height(140.dp),
+                        placeholder = {
+                                Text(
+                                        "e.g. 2 scrambled eggs with toast and butter",
+                                        fontFamily = interFamily
+                                )
+                        },
+                        maxLines = 5,
+                        shape = RoundedCornerShape(16.dp),
+                        colors =
+                                OutlinedTextFieldDefaults.colors(
+                                        focusedContainerColor = AppColors.surface,
+                                        unfocusedContainerColor = AppColors.surface,
+                                        focusedBorderColor = AppColors.primary,
+                                        unfocusedBorderColor = AppColors.border
+                                )
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Button(onClick = onParse, enabled = !isAiParsing && aiInput.isNotBlank()) {
+                        if (isAiParsing) {
+                                CircularProgressIndicator(
+                                        modifier = Modifier.padding(8.dp),
+                                        color = AppColors.textOnPrimary,
+                                        strokeWidth = 2.dp
+                                )
+                        } else {
+                                Text("Parse with AI", fontFamily = interFamily)
+                        }
+                }
+
+                if (aiResults.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Row(
+                                modifier =
+                                        Modifier.fillMaxWidth()
+                                                .background(
+                                                        AppColors.warning.copy(alpha = 0.1f),
+                                                        RoundedCornerShape(8.dp)
+                                                )
+                                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                        ) {
+                                Icon(
+                                        Icons.Filled.Info,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = AppColors.warning
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                        text = "AI estimates \u2014 review before adding",
+                                        fontFamily = interFamily,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = AppColors.warning
+                                )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        aiResults.forEach { item ->
+                                val itemColor =
+                                        when {
+                                                item.confidence != null && item.confidence < 0.5f ->
+                                                        AppColors.error
+                                                else -> AppColors.warning
+                                        }
+                                Row(
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                                Row(
+                                                        verticalAlignment =
+                                                                Alignment.CenterVertically
+                                                ) {
+                                                        Text(
+                                                                text =
+                                                                        "${item.name} (${item.quantity})",
+                                                                fontFamily = interFamily,
+                                                                fontWeight = FontWeight.Medium,
+                                                                style =
+                                                                        MaterialTheme.typography
+                                                                                .bodyMedium,
+                                                                color = AppColors.textPrimary,
+                                                                modifier =
+                                                                        Modifier.weight(
+                                                                                1f,
+                                                                                fill = false
+                                                                        )
+                                                        )
+                                                        if (item.confidence != null) {
+                                                                Spacer(
+                                                                        modifier =
+                                                                                Modifier.width(6.dp)
+                                                                )
+                                                                Text(
+                                                                        text =
+                                                                                "${(item.confidence * 100).toInt()}%",
+                                                                        fontFamily = interFamily,
+                                                                        style =
+                                                                                MaterialTheme
+                                                                                        .typography
+                                                                                        .labelSmall,
+                                                                        fontWeight =
+                                                                                FontWeight.Bold,
+                                                                        color = itemColor
+                                                                )
+                                                        }
+                                                }
+                                                Text(
+                                                        text =
+                                                                buildAnnotatedString {
+                                                                        withStyle(
+                                                                                SpanStyle(
+                                                                                        color =
+                                                                                                itemColor,
+                                                                                        fontWeight =
+                                                                                                FontWeight
+                                                                                                        .Bold
+                                                                                )
+                                                                        ) {
+                                                                                append(
+                                                                                        "${fmtNum(item.calories)} cal"
+                                                                                )
+                                                                        }
+                                                                        withStyle(
+                                                                                SpanStyle(
+                                                                                        color =
+                                                                                                AppColors
+                                                                                                        .textSecondary
+                                                                                )
+                                                                        ) {
+                                                                                append(
+                                                                                        " \u2022 ${fmtMacro(item.protein)}g P \u2022 ${fmtMacro(item.carbs)}g C \u2022 ${fmtMacro(item.fat)}g F"
+                                                                                )
+                                                                                if (item.sugar > 0f
+                                                                                ) {
+                                                                                        append(
+                                                                                                " \u2022 ${fmtMacro(item.sugar)}g S"
+                                                                                        )
+                                                                                }
+                                                                        }
+                                                                },
+                                                        fontFamily = interFamily,
+                                                        style = MaterialTheme.typography.bodySmall
+                                                )
+                                        }
+                                        Button(
+                                                onClick = { onAddParsedItem(item) },
+                                                modifier = Modifier.padding(start = 8.dp)
+                                        ) {
+                                                Text(
+                                                        "Add",
+                                                        fontFamily = interFamily,
+                                                        style = MaterialTheme.typography.labelSmall
+                                                )
+                                        }
+                                }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        if (aiResults.size > 1) {
+                                Button(
+                                        onClick = onAddAllParsed,
+                                        modifier = Modifier.fillMaxWidth()
+                                ) { Text("Add All", fontFamily = interFamily) }
+                        }
+                }
+        }
+}
+
+@Composable
+private fun ManualModeContent(
+        manualName: String,
+        manualCalories: String,
+        manualProtein: String,
+        manualCarbs: String,
+        manualFat: String,
+        manualSugar: String,
+        onNameChange: (String) -> Unit,
+        onCaloriesChange: (String) -> Unit,
+        onProteinChange: (String) -> Unit,
+        onCarbsChange: (String) -> Unit,
+        onFatChange: (String) -> Unit,
+        onSugarChange: (String) -> Unit,
+        onAdd: () -> Unit,
+        customFoodSuggestions: List<FoodItem>,
+        onSelectCustomFood: (FoodItem) -> Unit
+) {
+        Column {
+                OutlinedTextField(
+                        value = manualName,
+                        onValueChange = onNameChange,
+                        label = { Text("Food name", fontFamily = interFamily) },
+                        modifier = Modifier.fillMaxWidth()
+                )
+
+                if (customFoodSuggestions.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        customFoodSuggestions.take(5).forEach { food ->
+                                Text(
+                                        text = food.name,
+                                        fontFamily = interFamily,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = AppColors.primary,
+                                        modifier =
+                                                Modifier.padding(vertical = 2.dp).clickable {
+                                                        onSelectCustomFood(food)
+                                                }
+                                )
+                        }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                        value = manualCalories,
+                        onValueChange = { onCaloriesChange(it.filter { c -> c.isDigit() }) },
+                        label = { Text("Cal", fontFamily = interFamily) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions =
+                                androidx.compose.foundation.text.KeyboardOptions(
+                                        keyboardType =
+                                                androidx.compose.ui.text.input.KeyboardType.Number
+                                )
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                        OutlinedTextField(
+                                value = manualProtein,
+                                onValueChange = { onProteinChange(it.filter { c -> c.isDigit() || c == '.' }) },
+                                label = { Text("Protein (g)", fontFamily = interFamily) },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                keyboardOptions =
+                                        androidx.compose.foundation.text.KeyboardOptions(
+                                                keyboardType =
+                                                        androidx.compose.ui.text.input.KeyboardType.Decimal
+                                        )
+                        )
+                        OutlinedTextField(
+                                value = manualCarbs,
+                                onValueChange = { onCarbsChange(it.filter { c -> c.isDigit() || c == '.' }) },
+                                label = { Text("Carbs (g)", fontFamily = interFamily) },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                keyboardOptions =
+                                        androidx.compose.foundation.text.KeyboardOptions(
+                                                keyboardType =
+                                                        androidx.compose.ui.text.input.KeyboardType.Decimal
+                                        )
+                        )
+                        OutlinedTextField(
+                                value = manualFat,
+                                onValueChange = { onFatChange(it.filter { c -> c.isDigit() || c == '.' }) },
+                                label = { Text("Fat (g)", fontFamily = interFamily) },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                keyboardOptions =
+                                        androidx.compose.foundation.text.KeyboardOptions(
+                                                keyboardType =
+                                                        androidx.compose.ui.text.input.KeyboardType.Decimal
+                                        )
+                        )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                        value = manualSugar,
+                        onValueChange = { onSugarChange(it.filter { c -> c.isDigit() || c == '.' }) },
+                        label = { Text("Sugar (g)", fontFamily = interFamily) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions =
+                                androidx.compose.foundation.text.KeyboardOptions(
+                                        keyboardType =
+                                                androidx.compose.ui.text.input.KeyboardType.Decimal
+                                )
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                        onClick = onAdd,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled =
+                                manualName.isNotBlank() &&
+                                        manualCalories.toIntOrNull() != null &&
+                                        (manualCalories.toIntOrNull() ?: 0) > 0
+                ) { Text("Add Entry", fontFamily = interFamily) }
+        }
+}
+
+@Composable
+private fun ScanModeContent(
+        geminiReady: Boolean,
+        isScanning: Boolean,
+        scanResult: NutritionResult?,
+        scanError: String?,
+        onScan: (Bitmap) -> Unit,
+        onAddFromScan: (String, NutritionResult, Float, String) -> Unit,
+        onClearScan: () -> Unit
+) {
+        val context = LocalContext.current
+        var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
+
+        val cameraLauncher =
+                rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) {
+                        bitmap ->
+                        if (bitmap != null) {
+                                capturedBitmap = bitmap
+                                onScan(bitmap)
+                        }
+                }
+
+        val galleryLauncher =
+                rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri?
+                        ->
+                        uri?.let {
+                                try {
+                                        val inputStream =
+                                                context.contentResolver.openInputStream(it)
+                                        val bitmap = BitmapFactory.decodeStream(inputStream)
+                                        inputStream?.close()
+                                        if (bitmap != null) {
+                                                capturedBitmap = bitmap
+                                                onScan(bitmap)
+                                        }
+                                } catch (_: Exception) {}
+                        }
+                }
+
+        Column {
+                if (!geminiReady) {
+                        // ... (keep existing warning card logic if needed, or redesign it too)
+                        Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors =
+                                        CardDefaults.cardColors(
+                                                containerColor =
+                                                        AppColors.warning.copy(alpha = 0.1f)
+                                        )
+                        ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                        Text(
+                                                text = "On-Device AI Required",
+                                                fontFamily = interFamily,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = AppColors.textPrimary
+                                        )
+                                        Text(
+                                                text =
+                                                        "Label scanning requires on-device AI, which is not ready on this device yet. Ensure WiFi is connected and try again later.",
+                                                fontFamily = interFamily,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = AppColors.textSecondary
+                                        )
+                                }
+                        }
+                        return
+                }
+
+                Text(
+                        text = "Scan Nutrition Label",
+                        fontFamily = interFamily,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = AppColors.textPrimary
+                )
+                Text(
+                        text =
+                                "Use your camera or upload an image to interpret nutrition facts instantly.",
+                        fontFamily = interFamily,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = AppColors.textSecondary
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                val cameraPermissionLauncher =
+                        rememberLauncherForActivityResult(
+                                ActivityResultContracts.RequestPermission()
+                        ) { isGranted ->
+                                if (isGranted) {
+                                        cameraLauncher.launch(null)
+                                }
+                        }
+
+                // Action Buttons Row
+                Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                        // Camera Card (Take up more space)
+                        Card(
+                                modifier =
+                                        Modifier.weight(1f).height(200.dp).clickable {
+                                                val permission = android.Manifest.permission.CAMERA
+                                                if (androidx.core.content.ContextCompat
+                                                                .checkSelfPermission(
+                                                                        context,
+                                                                        permission
+                                                                ) ==
+                                                                android.content.pm.PackageManager
+                                                                        .PERMISSION_GRANTED
+                                                ) {
+                                                        cameraLauncher.launch(null)
+                                                } else {
+                                                        cameraPermissionLauncher.launch(permission)
+                                                }
+                                        },
+                                shape = RoundedCornerShape(24.dp),
+                                colors =
+                                        CardDefaults.cardColors(containerColor = AppColors.surface),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) {
+                                Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                ) {
+                                        Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.Center
+                                        ) {
+                                                Box(
+                                                        modifier =
+                                                                Modifier.size(64.dp)
+                                                                        .clip(CircleShape)
+                                                                        .background(
+                                                                                AppColors.primary
+                                                                                        .copy(
+                                                                                                alpha =
+                                                                                                        0.1f
+                                                                                        )
+                                                                        ),
+                                                        contentAlignment = Alignment.Center
+                                                ) {
+                                                        Icon(
+                                                                imageVector =
+                                                                        Icons.Filled.CameraAlt,
+                                                                contentDescription = null,
+                                                                modifier = Modifier.size(32.dp),
+                                                                tint = AppColors.primary
+                                                        )
+                                                }
+                                                Spacer(modifier = Modifier.height(12.dp))
+                                                Text(
+                                                        text = "Take Photo",
+                                                        fontFamily = interFamily,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        style =
+                                                                MaterialTheme.typography
+                                                                        .titleMedium,
+                                                        color = AppColors.primary
+                                                )
+                                        }
+                                }
+                        }
+
+                        // Gallery Card
+                        Card(
+                                modifier =
+                                        Modifier.weight(1f).height(200.dp).clickable {
+                                                galleryLauncher.launch("image/*")
+                                        },
+                                shape = RoundedCornerShape(24.dp),
+                                colors =
+                                        CardDefaults.cardColors(containerColor = AppColors.surface),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) {
+                                Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                ) {
+                                        Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.Center
+                                        ) {
+                                                Box(
+                                                        modifier =
+                                                                Modifier.size(64.dp)
+                                                                        .clip(CircleShape)
+                                                                        .background(
+                                                                                AppColors.accent
+                                                                                        .copy(
+                                                                                                alpha =
+                                                                                                        0.1f
+                                                                                        )
+                                                                        ),
+                                                        contentAlignment = Alignment.Center
+                                                ) {
+                                                        Icon(
+                                                                imageVector = Icons.Filled.Search,
+                                                                contentDescription = null,
+                                                                modifier = Modifier.size(32.dp),
+                                                                tint = AppColors.accent
+                                                        )
+                                                }
+                                                Spacer(modifier = Modifier.height(12.dp))
+                                                Text(
+                                                        text = "Upload Image",
+                                                        fontFamily = interFamily,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        style =
+                                                                MaterialTheme.typography
+                                                                        .titleMedium,
+                                                        color = AppColors.accent
+                                                )
+                                        }
+                                }
+                        }
+                }
+
+                if (isScanning) {
+                        Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors =
+                                        CardDefaults.cardColors(
+                                                containerColor = AppColors.primarySurface
+                                        )
+                        ) {
+                                Row(
+                                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                        horizontalArrangement = Arrangement.Center,
+                                        verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                        CircularProgressIndicator(
+                                                modifier = Modifier.size(24.dp),
+                                                strokeWidth = 2.dp,
+                                                color = AppColors.primary
+                                        )
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Text(
+                                                text = "Analyzing nutrition info...",
+                                                fontFamily = interFamily,
+                                                fontWeight = FontWeight.Medium,
+                                                color = AppColors.primary
+                                        )
+                                }
+                        }
+                }
+
+                scanError?.let { error ->
+                        Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors =
+                                        CardDefaults.cardColors(
+                                                containerColor = AppColors.error.copy(alpha = 0.1f)
+                                        )
+                        ) {
+                                Row(
+                                        modifier = Modifier.padding(16.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                        Icon(
+                                                Icons.Filled.Info,
+                                                contentDescription = null,
+                                                tint = AppColors.error
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                                text = error,
+                                                fontFamily = interFamily,
+                                                color = AppColors.error,
+                                                style = MaterialTheme.typography.bodyMedium
+                                        )
+                                }
+                        }
+                }
+
+                scanResult?.let { result ->
+                        Spacer(modifier = Modifier.height(16.dp))
+                        val lowConfidenceScan =
+                                result.confidence != null && result.confidence < 0.7f
+                        NutritionCard(
+                                result = result,
+                                onAdd = onAddFromScan,
+                                isAiEstimated = lowConfidenceScan
+                        )
+                }
+        }
+}
+
+private fun fmtMacro(v: Float): String {
+        val rounded = kotlin.math.round(v * 10) / 10f
+        return if (rounded == rounded.toLong().toFloat()) rounded.toLong().toString()
+        else "%.1f".format(rounded)
+}
+
+@Composable
+private fun EditFoodDialog(viewModel: LogViewModel) {
+        val editName by viewModel.editName.collectAsStateWithLifecycle()
+        val editCalories by viewModel.editCalories.collectAsStateWithLifecycle()
+        val editProtein by viewModel.editProtein.collectAsStateWithLifecycle()
+        val editCarbs by viewModel.editCarbs.collectAsStateWithLifecycle()
+        val editFat by viewModel.editFat.collectAsStateWithLifecycle()
+        val editSugar by viewModel.editSugar.collectAsStateWithLifecycle()
+        val editQuantity by viewModel.editQuantity.collectAsStateWithLifecycle()
+        val autoScale by viewModel.autoScale.collectAsStateWithLifecycle()
+        val editMealType by viewModel.editMealType.collectAsStateWithLifecycle()
+
+        // Meal metadata — same palette as diary tabs
+        data class MealOption(val type: MealType, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector, val color: Color)
+        val mealOptions = listOf(
+            MealOption(MealType.BREAKFAST, "Breakfast", Icons.Filled.WbSunny,    Color(0xFFFF9800)),
+            MealOption(MealType.LUNCH,     "Lunch",     Icons.Filled.LunchDining, Color(0xFF4CAF50)),
+            MealOption(MealType.DINNER,    "Dinner",    Icons.Filled.Bedtime,     Color(0xFF7C5CBF)),
+            MealOption(MealType.SNACK,     "Snacks",    Icons.Filled.Coffee,      Color(0xFF2196F3)),
+        )
+
+        val textFieldColors =
+                OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AppColors.primary,
+                        unfocusedBorderColor = AppColors.textPrimary
+                )
+
+        AlertDialog(
+                onDismissRequest = { viewModel.cancelEdit() },
+                title = {
+                        Text(
+                                text = "Edit Entry",
+                                fontFamily = interFamily,
+                                fontWeight = FontWeight.SemiBold
+                        )
+                },
+                text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+
+                                // ── Meal type picker ────────────────────────────────────
+                                Text(
+                                    text = "Meal",
+                                    fontFamily = interFamily,
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 12.sp,
+                                    color = AppColors.textSecondary,
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    mealOptions.forEach { opt ->
+                                        val isSelected = opt.type == editMealType
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(
+                                                    if (isSelected) opt.color.copy(alpha = 0.15f)
+                                                    else Color.Transparent
+                                                )
+                                                .border(
+                                                    width = if (isSelected) 1.5.dp else 1.dp,
+                                                    color = if (isSelected) opt.color else AppColors.border,
+                                                    shape = RoundedCornerShape(10.dp),
+                                                )
+                                                .clickable { viewModel.setEditMealType(opt.type) }
+                                                .padding(vertical = 7.dp, horizontal = 2.dp),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                                            ) {
+                                                Icon(
+                                                    imageVector = opt.icon,
+                                                    contentDescription = opt.label,
+                                                    tint = if (isSelected) opt.color else AppColors.textSecondary,
+                                                    modifier = Modifier.size(16.dp),
+                                                )
+                                                Text(
+                                                    text = opt.label,
+                                                    fontFamily = interFamily,
+                                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                                    fontSize = 8.sp,
+                                                    color = if (isSelected) opt.color else AppColors.textSecondary,
+                                                    textAlign = TextAlign.Center,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                OutlinedTextField(
+                                        value = editName,
+                                        onValueChange = { viewModel.setEditName(it) },
+                                        label = { Text("Name", fontFamily = interFamily) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = textFieldColors
+                                )
+                                OutlinedTextField(
+                                        value = editQuantity,
+                                        onValueChange = { viewModel.setEditQuantity(it) },
+                                        label = {
+                                                Text(
+                                                        "Quantity (e.g. 1.5 servings)",
+                                                        fontFamily = interFamily
+                                                )
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = textFieldColors,
+                                        trailingIcon = {
+                                                Row {
+                                                        IconButton(
+                                                                onClick = {
+                                                                        viewModel.adjustQuantity(
+                                                                                false
+                                                                        )
+                                                                }
+                                                        ) {
+                                                                Icon(
+                                                                        Icons.Filled.Remove,
+                                                                        contentDescription =
+                                                                                "Decrease"
+                                                                )
+                                                        }
+                                                        IconButton(
+                                                                onClick = {
+                                                                        viewModel.adjustQuantity(
+                                                                                true
+                                                                        )
+                                                                }
+                                                        ) {
+                                                                Icon(
+                                                                        Icons.Filled.Add,
+                                                                        contentDescription =
+                                                                                "Increase"
+                                                                )
+                                                        }
+                                                }
+                                        }
+                                )
+
+                                Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                        Checkbox(
+                                                checked = autoScale,
+                                                onCheckedChange = { viewModel.setAutoScale(it) }
+                                        )
+                                        Text(
+                                                "Auto-scale calories & macros",
+                                                fontFamily = interFamily,
+                                                style = MaterialTheme.typography.bodySmall
+                                        )
+                                }
+
+                                OutlinedTextField(
+                                        value = editCalories,
+                                        onValueChange = { viewModel.setEditCalories(it.filter { c -> c.isDigit() }) },
+                                        label = { Text("Cal", fontFamily = interFamily) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = textFieldColors,
+                                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                                        )
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedTextField(
+                                                value = editProtein,
+                                                onValueChange = { viewModel.setEditProtein(it.filter { c -> c.isDigit() || c == '.' }) },
+                                                label = {
+                                                        Text(
+                                                                "Protein (g)",
+                                                                fontFamily = interFamily
+                                                        )
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                colors = textFieldColors,
+                                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                                                )
+                                        )
+                                        OutlinedTextField(
+                                                value = editCarbs,
+                                                onValueChange = { viewModel.setEditCarbs(it.filter { c -> c.isDigit() || c == '.' }) },
+                                                label = {
+                                                        Text("Carbs (g)", fontFamily = interFamily)
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                colors = textFieldColors,
+                                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                                                )
+                                        )
+                                        OutlinedTextField(
+                                                value = editFat,
+                                                onValueChange = { viewModel.setEditFat(it.filter { c -> c.isDigit() || c == '.' }) },
+                                                label = {
+                                                        Text("Fat (g)", fontFamily = interFamily)
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                colors = textFieldColors,
+                                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                                                )
+                                        )
+                                }
+                                OutlinedTextField(
+                                        value = editSugar,
+                                        onValueChange = { viewModel.setEditSugar(it.filter { c -> c.isDigit() || c == '.' }) },
+                                        label = { Text("Sugar (g)", fontFamily = interFamily) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = textFieldColors,
+                                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                                        )
+                                )
+                        }
+                },
+                confirmButton = {
+                        Button(onClick = { viewModel.saveEdit() }) {
+                                Text("Save", fontFamily = interFamily)
+                        }
+                },
+                dismissButton = {
+                        TextButton(onClick = { viewModel.cancelEdit() }) {
+                                Text("Cancel", fontFamily = interFamily)
+                        }
+                }
+        )
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun AllFoodsDialog(
+        foods: List<FoodItem>,
+        onDismiss: () -> Unit,
+        onSelect: (FoodItem) -> Unit,
+        onRemove: (FoodItem) -> Unit
+) {
+        var jsonToShow by remember { mutableStateOf<String?>(null) }
+        var foodForOptions by remember { mutableStateOf<FoodItem?>(null) }
+
+        androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+                Surface(
+                        modifier = Modifier.fillMaxWidth().fillMaxHeight(0.8f),
+                        shape = RoundedCornerShape(16.dp),
+                        color = AppColors.surface
+                ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                        text = "Saved Foods History",
+                                        fontFamily = interFamily,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 20.sp,
+                                        color = AppColors.textPrimary
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                if (foods.isEmpty()) {
+                                        Text(
+                                                text = "No saved foods found.",
+                                                fontFamily = interFamily,
+                                                color = AppColors.textSecondary
+                                        )
+                                } else {
+                                        androidx.compose.foundation.lazy.LazyColumn(
+                                                modifier = Modifier.weight(1f)
+                                        ) {
+                                                items(foods.size) { index ->
+                                                        val food = foods[index]
+                                                        Column(
+                                                                modifier =
+                                                                        Modifier.fillMaxWidth()
+                                                                                .combinedClickable(
+                                                                                        onClick = {
+                                                                                                onSelect(
+                                                                                                        food
+                                                                                                )
+                                                                                        },
+                                                                                        onLongClick = {
+                                                                                                foodForOptions =
+                                                                                                        food
+                                                                                        }
+                                                                                )
+                                                                                .padding(
+                                                                                        vertical =
+                                                                                                12.dp
+                                                                                )
+                                                        ) {
+                                                                Text(
+                                                                        text = food.name,
+                                                                        fontFamily = interFamily,
+                                                                        fontWeight =
+                                                                                FontWeight.SemiBold,
+                                                                        fontSize = 16.sp,
+                                                                        color =
+                                                                                AppColors
+                                                                                        .textPrimary
+                                                                )
+                                                                Text(
+                                                                        text =
+                                                                                "${food.calories} cal • ${food.protein}g Protein • ${food.carbs}g Carbs • ${food.fat}g Fat",
+                                                                        fontFamily = interFamily,
+                                                                        fontSize = 14.sp,
+                                                                        color =
+                                                                                AppColors
+                                                                                        .textSecondary
+                                                                )
+                                                        }
+                                                        if (index < foods.size - 1) {
+                                                                HorizontalDivider(
+                                                                        color = AppColors.divider
+                                                                )
+                                                        }
+                                                }
+                                        }
+                                }
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Button(
+                                        onClick = onDismiss,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors =
+                                                ButtonDefaults.buttonColors(
+                                                        containerColor = AppColors.primary,
+                                                        contentColor = AppColors.textOnPrimary
+                                                )
+                                ) { Text("Close", fontFamily = interFamily) }
+                        }
+                }
+        }
+
+        if (jsonToShow != null) {
+                AlertDialog(
+                        onDismissRequest = { jsonToShow = null },
+                        confirmButton = {
+                                TextButton(onClick = { jsonToShow = null }) {
+                                        Text("Close", fontFamily = interFamily)
+                                }
+                        },
+                        title = {
+                                Text(
+                                        text = "Raw Item Data",
+                                        fontFamily = interFamily,
+                                        fontWeight = FontWeight.Bold
+                                )
+                        },
+                        text = {
+                                Box(
+                                        modifier =
+                                                Modifier.fillMaxWidth()
+                                                        .background(
+                                                                Color.Black.copy(alpha = 0.05f),
+                                                                RoundedCornerShape(8.dp)
+                                                        )
+                                                        .padding(12.dp)
+                                ) {
+                                        Text(
+                                                text = jsonToShow!!,
+                                                fontFamily =
+                                                        androidx.compose.ui.text.font.FontFamily
+                                                                .Monospace,
+                                                fontSize = 12.sp,
+                                                color = AppColors.textPrimary
+                                        )
+                                }
+                        }
+                )
+        }
+
+        if (foodForOptions != null) {
+                AlertDialog(
+                        onDismissRequest = { foodForOptions = null },
+                        title = {
+                                Text(
+                                        foodForOptions!!.name,
+                                        fontFamily = interFamily,
+                                        fontWeight = FontWeight.Bold
+                                )
+                        },
+                        text = {
+                                Text(
+                                        "What would you like to do with this item?",
+                                        fontFamily = interFamily
+                                )
+                        },
+                        confirmButton = {
+                                TextButton(
+                                        onClick = {
+                                                val prettyJson = Json { prettyPrint = true }
+                                                jsonToShow =
+                                                        prettyJson.encodeToString(foodForOptions!!)
+                                                foodForOptions = null
+                                        }
+                                ) { Text("View Entity", fontFamily = interFamily) }
+                        },
+                        dismissButton = {
+                                Row {
+                                        TextButton(
+                                                onClick = {
+                                                        onRemove(foodForOptions!!)
+                                                        foodForOptions = null
+                                                }
+                                        ) {
+                                                Text(
+                                                        "Remove Entity",
+                                                        fontFamily = interFamily,
+                                                        color = AppColors.error
+                                                )
+                                        }
+                                        TextButton(onClick = { foodForOptions = null }) {
+                                                Text("Cancel", fontFamily = interFamily)
+                                        }
+                                }
+                        }
+                )
+        }
+}
+
+@Composable
+private fun HistoryChart(
+        values: List<Int>,
+        dayNames: List<String>,
+        goal: Int,
+        formatValue: (Int) -> String
+) {
+        val textSecondaryArgb =
+                android.graphics.Color.argb(
+                        (AppColors.textSecondary.alpha * 255).toInt(),
+                        (AppColors.textSecondary.red * 255).toInt(),
+                        (AppColors.textSecondary.green * 255).toInt(),
+                        (AppColors.textSecondary.blue * 255).toInt()
+                )
+
+        fun valueColor(v: Int): Int {
+                val pct = if (goal > 0) v.toFloat() / goal else 0f
+                return when {
+                        pct >= 1.0f  -> android.graphics.Color.parseColor("#4CAF50")
+                        pct >= 0.75f -> {
+                                val t = (pct - 0.75f) / 0.25f
+                                lerpArgb(android.graphics.Color.parseColor("#FF9800"),
+                                         android.graphics.Color.parseColor("#4CAF50"), t)
+                        }
+                        pct >= 0.4f  -> {
+                                val t = (pct - 0.4f) / 0.35f
+                                lerpArgb(android.graphics.Color.parseColor("#F44336"),
+                                         android.graphics.Color.parseColor("#FF9800"), t)
+                        }
+                        else -> android.graphics.Color.parseColor("#F44336")
+                }
+        }
+
+        val maxValue = (values.maxOrNull() ?: 1).coerceAtLeast(goal).coerceAtLeast(1)
+
+        val revealProgress =
+                androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
+        androidx.compose.runtime.LaunchedEffect(values) {
+                revealProgress.snapTo(0f)
+                revealProgress.animateTo(
+                        1f,
+                        animationSpec = androidx.compose.animation.core.tween(
+                                900, easing = androidx.compose.animation.core.FastOutSlowInEasing
+                        )
+                )
+        }
+
+        Canvas(modifier = Modifier.fillMaxWidth().height(160.dp)) {
+                val count = values.size
+                if (count == 0) return@Canvas
+
+                val bottomPadding = 32f
+                val topPadding = 20f
+                val chartHeight = size.height - bottomPadding - topPadding
+                val slotWidth = size.width / count
+
+                val points = values.mapIndexed { i, v ->
+                        val x = slotWidth * i + slotWidth / 2f
+                        val y = topPadding + chartHeight - (v.toFloat() / maxValue) * chartHeight
+                        x to y
+                }
+
+                val t = revealProgress.value
+                val totalPoints = points.size.toFloat()
+
+                // ── Goal reference line ─────────────────────────────────────────
+                if (goal > 0) {
+                        val goalY = topPadding + chartHeight - (goal.toFloat() / maxValue) * chartHeight
+                        val goalPaint = android.graphics.Paint().apply {
+                                color = android.graphics.Color.argb(80, 255, 255, 255)
+                                strokeWidth = 2f
+                                isAntiAlias = true
+                                style = android.graphics.Paint.Style.STROKE
+                                pathEffect = android.graphics.DashPathEffect(floatArrayOf(12f, 8f), 0f)
+                        }
+                        drawContext.canvas.nativeCanvas.drawLine(0f, goalY, size.width * t, goalY, goalPaint)
+                }
+
+                // ── Gradient fill area ──────────────────────────────────────────
+                if (points.size >= 2) {
+                        val fillPath = android.graphics.Path()
+                        val firstVisible = (t * totalPoints).toInt().coerceIn(0, points.size - 1)
+                        fillPath.moveTo(points[0].first, size.height - bottomPadding)
+                        for (i in 0..firstVisible) {
+                                val segProgress = ((t * totalPoints) - i).coerceIn(0f, 1f)
+                                val (x, y) = points[i]
+                                val nextPt = points.getOrNull(i + 1)
+                                val drawX = if (nextPt != null && segProgress < 1f) x + (nextPt.first - x) * segProgress else x
+                                val drawY = if (nextPt != null && segProgress < 1f) y + (nextPt.second - y) * segProgress else y
+                                fillPath.lineTo(drawX, drawY)
+                        }
+                        fillPath.lineTo(points[firstVisible.coerceAtMost(points.size - 1)].first, size.height - bottomPadding)
+                        fillPath.close()
+                        val fillPaint = android.graphics.Paint().apply {
+                                isAntiAlias = true
+                                style = android.graphics.Paint.Style.FILL
+                                shader = android.graphics.LinearGradient(
+                                        0f, topPadding, 0f, size.height - bottomPadding,
+                                        intArrayOf(android.graphics.Color.argb(60, 255, 255, 255), android.graphics.Color.TRANSPARENT),
+                                        null, android.graphics.Shader.TileMode.CLAMP
+                                )
+                                alpha = (180 * t).toInt()
+                        }
+                        drawContext.canvas.nativeCanvas.drawPath(fillPath, fillPaint)
+                }
+
+                // ── Gradient line segments ──────────────────────────────────────
+                for (i in 0 until points.size - 1) {
+                        val segProgress = ((t * totalPoints) - i).coerceIn(0f, 1f)
+                        if (segProgress <= 0f) continue
+                        val (x1, y1) = points[i]
+                        val (x2, y2) = points[i + 1]
+                        val ex = x1 + (x2 - x1) * segProgress
+                        val ey = y1 + (y2 - y1) * segProgress
+                        val c1 = valueColor(values[i])
+                        val c2 = valueColor(values[i + 1])
+                        val segPaint = android.graphics.Paint().apply {
+                                isAntiAlias = true
+                                strokeWidth = 8f
+                                style = android.graphics.Paint.Style.STROKE
+                                strokeJoin = android.graphics.Paint.Join.ROUND
+                                strokeCap = android.graphics.Paint.Cap.ROUND
+                                shader = android.graphics.LinearGradient(
+                                        x1, y1, ex, ey,
+                                        intArrayOf(c1, lerpArgb(c1, c2, segProgress)),
+                                        null, android.graphics.Shader.TileMode.CLAMP
+                                )
+                                alpha = (255 * segProgress.coerceAtMost(1f)).toInt()
+                        }
+                        drawContext.canvas.nativeCanvas.drawLine(x1, y1, ex, ey, segPaint)
+                }
+
+                // ── Dots + labels ───────────────────────────────────────────────
+                val labelPaint = android.graphics.Paint().apply {
+                        color = textSecondaryArgb
+                        textAlign = android.graphics.Paint.Align.CENTER
+                        textSize = 30f
+                        isAntiAlias = true
+                        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+                }
+                val valuePaint = android.graphics.Paint().apply {
+                        textAlign = android.graphics.Paint.Align.CENTER
+                        textSize = 24f
+                        isAntiAlias = true
+                }
+
+                points.forEachIndexed { i, (x, y) ->
+                        val pointProgress = ((t * totalPoints) - i).coerceIn(0f, 1f)
+                        if (pointProgress <= 0f) return@forEachIndexed
+                        val dotColor = valueColor(values[i])
+                        val scale = if (pointProgress < 0.5f) pointProgress * 2f * 1.3f
+                                    else 1.3f - (pointProgress - 0.5f) * 2f * 0.3f
+                        val dotRadius = 9f * scale
+
+                        // Glow
+                        drawContext.canvas.nativeCanvas.drawCircle(x, y, dotRadius * 1.4f,
+                                android.graphics.Paint().apply {
+                                        color = dotColor; isAntiAlias = true
+                                        style = android.graphics.Paint.Style.FILL
+                                        alpha = (80 * pointProgress).toInt()
+                                        maskFilter = android.graphics.BlurMaskFilter(dotRadius * 1.5f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+                                })
+                        // Fill
+                        drawContext.canvas.nativeCanvas.drawCircle(x, y, dotRadius,
+                                android.graphics.Paint().apply {
+                                        color = dotColor; isAntiAlias = true
+                                        style = android.graphics.Paint.Style.FILL
+                                        alpha = (255 * pointProgress).toInt()
+                                })
+                        // White center
+                        drawContext.canvas.nativeCanvas.drawCircle(x, y, dotRadius * 0.45f,
+                                android.graphics.Paint().apply {
+                                        color = android.graphics.Color.WHITE; isAntiAlias = true
+                                        style = android.graphics.Paint.Style.FILL
+                                        alpha = (255 * pointProgress).toInt()
+                                })
+
+                        // Day label
+                        labelPaint.alpha = (255 * pointProgress).toInt()
+                        drawContext.canvas.nativeCanvas.drawText(dayNames.getOrElse(i) { "" }, x, size.height - 4f, labelPaint)
+
+                        // Value label
+                        if (values[i] > 0 && pointProgress > 0.3f) {
+                                valuePaint.color = dotColor
+                                valuePaint.alpha = (255 * ((pointProgress - 0.3f) / 0.7f).coerceIn(0f, 1f)).toInt()
+                                drawContext.canvas.nativeCanvas.drawText(formatValue(values[i]), x, y - 14f, valuePaint)
+                        }
+                }
+        }
+}
+
+private fun lerpArgb(c1: Int, c2: Int, t: Float): Int {
+        val r1 = (c1 shr 16) and 0xFF; val g1 = (c1 shr 8) and 0xFF; val b1 = c1 and 0xFF
+        val r2 = (c2 shr 16) and 0xFF; val g2 = (c2 shr 8) and 0xFF; val b2 = c2 and 0xFF
+        return android.graphics.Color.rgb(
+                (r1 + (r2 - r1) * t).toInt().coerceIn(0, 255),
+                (g1 + (g2 - g1) * t).toInt().coerceIn(0, 255),
+                (b1 + (b2 - b1) * t).toInt().coerceIn(0, 255)
+        )
+}
+

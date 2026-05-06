@@ -8,17 +8,17 @@ plugins {
 }
 
 android {
-    namespace = "com.fittrack.app"
+    namespace = "com.hopehealth.app"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.fittrack.app"
+        applicationId = "com.hopehealth.app"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
 
-        testInstrumentationRunner = "com.fittrack.app.test.HiltTestRunner"
+        testInstrumentationRunner = "com.hopehealth.app.test.HiltTestRunner"
 
         ndk {
             abiFilters += "arm64-v8a"

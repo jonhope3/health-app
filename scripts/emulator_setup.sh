@@ -10,7 +10,7 @@ set -euo pipefail
 SDK="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
 AVDMANAGER="$SDK/cmdline-tools/latest/bin/avdmanager"
-AVD_NAME="FitTrack_Test"
+AVD_NAME="HopeHealth_Test"
 
 # Primary install path used on this machine
 if [[ ! -f "$SDKMANAGER" ]]; then

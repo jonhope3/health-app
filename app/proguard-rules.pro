@@ -1,9 +1,9 @@
 ################################################################################
-# FitTrack ProGuard / R8 Rules
+# HopeHealth ProGuard / R8 Rules
 ################################################################################
 
 # ── App data layer ────────────────────────────────────────────────────────────
--keep class com.fittrack.app.data.** { *; }
+-keep class com.hopehealth.app.data.** { *; }
 -keepattributes *Annotation*
 
 # ── Kotlin Serialization ──────────────────────────────────────────────────────
@@ -53,7 +53,7 @@
 
 # ── Jetpack Navigation (type-safe serializable routes) ───────────────────────
 # @Serializable data objects used as nav routes must survive shrinking
--keep @kotlinx.serialization.Serializable class com.fittrack.app.** { *; }
+-keep @kotlinx.serialization.Serializable class com.hopehealth.app.** { *; }
 
 # ── ML Kit GenAI (Gemini Nano) ────────────────────────────────────────────────
 # Prevent R8 from stripping the MlKit auto-init ContentProvider and context

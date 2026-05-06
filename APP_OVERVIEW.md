@@ -1,4 +1,4 @@
-# FitTrack — App Review Document
+# HopeHealth — App Review Document
 
 > **Last updated:** 2026-05-06
 > **Platform:** Android 14+ (Google Pixel 10 Pro)
@@ -9,9 +9,9 @@
 
 ---
 
-## What Is FitTrack?
+## What Is HopeHealth?
 
-FitTrack is a **privacy-first, offline-capable health tracking app**
+HopeHealth is a **privacy-first, offline-capable health tracking app**
 built exclusively for the Google Pixel 10 Pro. It combines daily
 calorie and macronutrient tracking, step counting, fertility and
 menstrual cycle tracking, and on-device AI-powered food recognition
@@ -20,7 +20,7 @@ into a single, self-contained application.
 ### Why Does It Exist?
 
 Most health tracking apps require cloud accounts, sync personal data
-to remote servers, and rely on internet connectivity. FitTrack takes
+to remote servers, and rely on internet connectivity. HopeHealth takes
 the opposite approach:
 
 - **Zero cloud dependency** — all data stored locally via Room
@@ -180,7 +180,7 @@ phase-specific fallback tips when AI is unavailable.
    a non-AI fallback. The app is fully usable without Gemini Nano.
 6. **Family as app-within-an-app** — uses its own color palette
    (`FamilyColors`) while sharing Material 3 structure, typography,
-   and interaction patterns with the rest of FitTrack.
+   and interaction patterns with the rest of HopeHealth.
 
 ### Data Storage (Room v3)
 

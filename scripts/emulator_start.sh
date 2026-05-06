@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
 # scripts/emulator_start.sh
-# Starts the lightweight FitTrack_Test AVD.
+# Starts the lightweight HopeHealth_Test AVD.
 # Usage: ./scripts/emulator_start.sh [--dark]
 # =============================================================================
 
@@ -10,7 +10,7 @@ set -euo pipefail
 SDK="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 EMULATOR="$SDK/emulator/emulator"
 ADB="$SDK/platform-tools/adb"
-AVD_NAME="FitTrack_Test"
+AVD_NAME="HopeHealth_Test"
 DARK_MODE=false
 
 for arg in "$@"; do
@@ -36,7 +36,7 @@ nohup "$EMULATOR" \
   -gpu swiftshader_indirect \
   -memory 2048 \
   -cores 2 \
-  > /tmp/fittrack_emu.log 2>&1 &
+  > /tmp/hopehealth_emu.log 2>&1 &
 
 EMU_PID=$!
 echo "   PID: ${EMU_PID}"
@@ -66,4 +66,4 @@ fi
 
 echo ""
 echo "✅  Emulator ready — run 'make run' to install and launch the app."
-echo "   Logs: /tmp/fittrack_emu.log"
+echo "   Logs: /tmp/hopehealth_emu.log"
