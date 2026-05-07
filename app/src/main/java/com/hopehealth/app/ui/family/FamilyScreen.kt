@@ -51,8 +51,11 @@ import com.hopehealth.app.theme.FamilyColors
 import com.hopehealth.app.theme.interFamily
 import com.hopehealth.app.ui.common.ScreenScaffold
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -213,8 +216,9 @@ fun FamilyScreen(viewModel: FamilyViewModel = hiltViewModel()) {
                 showLogger = false
             },
             onStartPeriod = { viewModel.logPeriodStart(loggerDate); showLogger = false },
-            onEndPeriod = { viewModel.logPeriodEnd(loggerDate); showLogger = false },
-            hasPeriod = state.currentCycle?.endDate == null && state.currentPhase == CyclePhase.MENSTRUAL,
+            onEndPeriod = { date -> viewModel.logPeriodEnd(date); showLogger = false },
+            hasActiveCycle = state.currentCycle?.endDate == null && state.currentCycle != null,
+            periodStartDate = state.currentCycle?.startDate?.let { LocalDate.parse(it) },
         )
     }
 }
@@ -628,8 +632,9 @@ private fun DailyLoggerSheet(
     onDismiss: () -> Unit,
     onSave: (String?, String?, String, String?, String?, String?, Float?) -> Unit,
     onStartPeriod: () -> Unit,
-    onEndPeriod: () -> Unit,
-    hasPeriod: Boolean,
+    onEndPeriod: (LocalDate) -> Unit,
+    hasActiveCycle: Boolean,
+    periodStartDate: LocalDate? = null,
 ) {
     var flow by remember { mutableStateOf(existingLog?.flowIntensity) }
     var mucus by remember { mutableStateOf(existingLog?.cervicalMucus) }
@@ -664,11 +669,60 @@ private fun DailyLoggerSheet(
             Spacer(Modifier.height(16.dp))
 
             // Period button
-            if (hasPeriod) {
+            if (hasActiveCycle) {
+                var showEndDatePicker by remember { mutableStateOf(false) }
+
                 OutlinedButton(
-                    onClick = onEndPeriod, modifier = Modifier.fillMaxWidth(),
+                    onClick = { showEndDatePicker = true }, modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = FamilyColors.menstrual),
                 ) { Text("Mark Period End", fontFamily = interFamily, fontWeight = FontWeight.SemiBold) }
+
+                if (showEndDatePicker) {
+                    val startMillis = periodStartDate
+                        ?.atStartOfDay(ZoneOffset.UTC)
+                        ?.toInstant()?.toEpochMilli() ?: 0L
+                    val datePickerState = rememberDatePickerState(
+                        initialSelectedDateMillis = targetDate
+                            .atStartOfDay(ZoneOffset.UTC)
+                            .toInstant().toEpochMilli(),
+                        selectableDates = object : SelectableDates {
+                            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                                return utcTimeMillis >= startMillis
+                            }
+                        },
+                    )
+                    DatePickerDialog(
+                        onDismissRequest = { showEndDatePicker = false },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                val millis = datePickerState.selectedDateMillis
+                                if (millis != null) {
+                                    val picked = Instant.ofEpochMilli(millis)
+                                        .atZone(ZoneId.of("UTC"))
+                                        .toLocalDate()
+                                    onEndPeriod(picked)
+                                }
+                                showEndDatePicker = false
+                            }) { Text("Confirm", fontFamily = interFamily, fontWeight = FontWeight.SemiBold) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showEndDatePicker = false }) {
+                                Text("Cancel", fontFamily = interFamily)
+                            }
+                        },
+                    ) {
+                        DatePicker(
+                            state = datePickerState,
+                            title = {
+                                Text(
+                                    "When did your period end?",
+                                    modifier = Modifier.padding(start = 24.dp, top = 16.dp),
+                                    fontFamily = interFamily, fontWeight = FontWeight.SemiBold,
+                                )
+                            },
+                        )
+                    }
+                }
             } else {
                 OutlinedButton(
                     onClick = onStartPeriod, modifier = Modifier.fillMaxWidth(),
